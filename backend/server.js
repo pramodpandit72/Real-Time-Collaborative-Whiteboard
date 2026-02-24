@@ -1,4 +1,5 @@
-
+import dns from 'node:dns';
+import 'dotenv/config';
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -6,7 +7,6 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import passport from 'passport';
 import session from 'express-session';
-import 'dotenv/config';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -54,37 +54,60 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Connect to MongoDB with retry logic
-const connectWithRetry = async (retries = 10, delay = 5000) => {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      await mongoose.connect(process.env.MONGODB_URI, {
-        serverSelectionTimeoutMS: 10000,
-        socketTimeoutMS: 45000,
-      });
-      console.log('Connected to MongoDB');
-      return;
-    } catch (err) {
-      console.error(`MongoDB connection attempt ${attempt}/${retries} failed:`, err.message);
-      if (attempt < retries) {
-        console.log(`Retrying in ${delay / 1000}s...`);
-        await new Promise(res => setTimeout(res, delay));
-      } else {
-        console.error('All MongoDB connection attempts failed. Server will continue running — reconnect will be attempted automatically by Mongoose.');
+// DNS servers to try in order: system default, Google, Cloudflare
+const DNS_SERVERS = [
+  null, // system default
+  ['8.8.8.8', '8.8.4.4'],       // Google
+  ['1.1.1.1', '1.0.0.1'],       // Cloudflare
+  ['208.67.222.222', '208.67.220.220'], // OpenDNS
+];
+
+const systemDns = dns.getServers();
+
+// Connect to MongoDB with DNS fallback + retry logic
+const connectWithRetry = async (maxRetries = 3, delay = 5000) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    for (const dnsServers of DNS_SERVERS) {
+      try {
+        // Switch DNS server
+        if (dnsServers) {
+          dns.setServers(dnsServers);
+          console.log(`Trying DNS: ${dnsServers[0]}...`);
+        } else {
+          dns.setServers(systemDns);
+          console.log('Trying system DNS...');
+        }
+
+        await mongoose.connect(process.env.MONGODB_URI, {
+          serverSelectionTimeoutMS: 15000,
+          socketTimeoutMS: 45000,
+          family: 4, // Force IPv4
+        });
+        console.log('Connected to MongoDB successfully');
+        return;
+      } catch (err) {
+        // Disconnect any partial connection before retrying
+        try { await mongoose.disconnect(); } catch (_) { }
+        console.error(`DNS ${dnsServers ? dnsServers[0] : 'system'} failed:`, err.message);
       }
     }
+    if (attempt < maxRetries) {
+      console.log(`All DNS servers failed. Retry ${attempt}/${maxRetries} in ${delay / 1000}s...`);
+      await new Promise(res => setTimeout(res, delay));
+    }
   }
+  console.error('All MongoDB connection attempts exhausted. Server running without DB — will auto-reconnect when available.');
 };
 
 // Mongoose connection event listeners
-mongoose.connection.on('disconnected', () => console.warn('MongoDB disconnected. Mongoose will attempt to reconnect...'));
+mongoose.connection.on('disconnected', () => console.warn('MongoDB disconnected. Reconnecting...'));
 mongoose.connection.on('reconnected', () => console.log('MongoDB reconnected'));
 mongoose.connection.on('error', (err) => console.error('MongoDB error:', err.message));
 
 // Graceful shutdown
 process.on('SIGINT', async () => {
   await mongoose.connection.close();
-  console.log('MongoDB connection closed due to app termination');
+  console.log('MongoDB connection closed');
   process.exit(0);
 });
 
