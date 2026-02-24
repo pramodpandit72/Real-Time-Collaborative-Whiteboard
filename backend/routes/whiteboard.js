@@ -1,7 +1,8 @@
-const express = require('express');
+import express from 'express';
+import * as whiteboardController from '../controllers/whiteboardController.js';
+import { protect } from '../middleware/auth.js';
+
 const router = express.Router();
-const whiteboardController = require('../controllers/whiteboardController');
-const { protect } = require('../middleware/auth');
 
 // All routes require authentication
 router.use(protect);
@@ -16,4 +17,4 @@ router.post('/:roomId/undo', whiteboardController.undoStroke);
 router.post('/:roomId/snapshot', whiteboardController.saveSnapshot);
 router.get('/:roomId/snapshots', whiteboardController.getSnapshots);
 
-module.exports = router;
+export default router;

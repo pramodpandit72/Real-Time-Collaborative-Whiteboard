@@ -1,8 +1,9 @@
-const express = require('express');
+import express from 'express';
+import passport from 'passport';
+import * as authController from '../controllers/authController.js';
+import { protect } from '../middleware/auth.js';
+
 const router = express.Router();
-const passport = require('passport');
-const authController = require('../controllers/authController');
-const { protect } = require('../middleware/auth');
 
 // Local auth routes
 router.post('/register', authController.register);
@@ -29,4 +30,4 @@ router.get('/google/callback',
   authController.googleCallback
 );
 
-module.exports = router;
+export default router;

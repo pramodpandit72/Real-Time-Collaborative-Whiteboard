@@ -1,22 +1,22 @@
-require('dotenv').config();
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const cors = require('cors');
-const mongoose = require('mongoose');
-const passport = require('passport');
-const session = require('express-session');
+import 'dotenv/config';
+import express from 'express';
+import http from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import mongoose from 'mongoose';
+import passport from 'passport';
+import session from 'express-session';
 
 // Import routes
-const authRoutes = require('./routes/auth');
-const roomRoutes = require('./routes/room');
-const whiteboardRoutes = require('./routes/whiteboard');
+import authRoutes from './routes/auth.js';
+import roomRoutes from './routes/room.js';
+import whiteboardRoutes from './routes/whiteboard.js';
 
 // Import socket handler
-const socketHandler = require('./socket/socketHandler');
+import socketHandler from './socket/socketHandler.js';
 
 // Import passport config
-require('./config/passport');
+import './config/passport.js';
 
 const app = express();
 const server = http.createServer(app);
@@ -92,4 +92,4 @@ server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
 
-module.exports = { app, server, io };
+export { app, server, io };

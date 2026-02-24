@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const messageSchema = new mongoose.Schema({
   room: {
@@ -38,4 +38,4 @@ const messageSchema = new mongoose.Schema({
 // Index for faster room message lookup
 messageSchema.index({ room: 1, createdAt: -1 });
 
-module.exports = mongoose.model('Message', messageSchema);
+export default mongoose.model('Message', messageSchema);

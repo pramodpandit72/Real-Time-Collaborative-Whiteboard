@@ -1,8 +1,8 @@
-const Message = require('../models/Message');
-const Room = require('../models/Room');
+import Message from '../models/Message.js';
+import Room from '../models/Room.js';
 
 // Get messages for a room
-exports.getMessages = async (req, res) => {
+export const getMessages = async (req, res) => {
   try {
     const { roomId } = req.params;
     const { limit = 50, before } = req.query;
@@ -52,7 +52,7 @@ exports.getMessages = async (req, res) => {
 };
 
 // Send a message
-exports.sendMessage = async (req, res) => {
+export const sendMessage = async (req, res) => {
   try {
     const { roomId } = req.params;
     const { content, type = 'text', fileData } = req.body;
@@ -118,7 +118,7 @@ exports.sendMessage = async (req, res) => {
 };
 
 // Delete a message
-exports.deleteMessage = async (req, res) => {
+export const deleteMessage = async (req, res) => {
   try {
     const { messageId } = req.params;
 

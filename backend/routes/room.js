@@ -1,8 +1,9 @@
-const express = require('express');
+import express from 'express';
+import * as roomController from '../controllers/roomController.js';
+import * as chatController from '../controllers/chatController.js';
+import { protect } from '../middleware/auth.js';
+
 const router = express.Router();
-const roomController = require('../controllers/roomController');
-const chatController = require('../controllers/chatController');
-const { protect } = require('../middleware/auth');
 
 // All routes require authentication
 router.use(protect);
@@ -25,4 +26,4 @@ router.get('/:roomId/messages', chatController.getMessages);
 router.post('/:roomId/messages', chatController.sendMessage);
 router.delete('/messages/:messageId', chatController.deleteMessage);
 
-module.exports = router;
+export default router;

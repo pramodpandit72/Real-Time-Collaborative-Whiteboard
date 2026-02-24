@@ -1,5 +1,5 @@
-const mongoose = require('mongoose');
-const { v4: uuidv4 } = require('uuid');
+import mongoose from 'mongoose';
+import { v4 as uuidv4 } from 'uuid';
 
 const roomSchema = new mongoose.Schema({
   roomId: {
@@ -83,4 +83,4 @@ const roomSchema = new mongoose.Schema({
 // Index for faster queries (roomId already indexed via unique: true)
 roomSchema.index({ host: 1 });
 
-module.exports = mongoose.model('Room', roomSchema);
+export default mongoose.model('Room', roomSchema);

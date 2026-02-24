@@ -1,13 +1,13 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-const Room = require('../models/Room');
-const Message = require('../models/Message');
-const Whiteboard = require('../models/Whiteboard');
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
+import Room from '../models/Room.js';
+import Message from '../models/Message.js';
+import Whiteboard from '../models/Whiteboard.js';
 
 // Store active connections
 const activeConnections = new Map();
 
-module.exports = (io) => {
+export default (io) => {
   // Middleware to authenticate socket connections
   io.use(async (socket, next) => {
     try {

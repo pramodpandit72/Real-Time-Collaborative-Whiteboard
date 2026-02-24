@@ -1,9 +1,9 @@
-const Room = require('../models/Room');
-const Whiteboard = require('../models/Whiteboard');
-const User = require('../models/User');
+import Room from '../models/Room.js';
+import Whiteboard from '../models/Whiteboard.js';
+import User from '../models/User.js';
 
 // Create a new room
-exports.createRoom = async (req, res) => {
+export const createRoom = async (req, res) => {
   try {
     const { name, isPrivate, password, maxParticipants, settings } = req.body;
 
@@ -57,7 +57,7 @@ exports.createRoom = async (req, res) => {
 };
 
 // Join a room
-exports.joinRoom = async (req, res) => {
+export const joinRoom = async (req, res) => {
   try {
     const { roomId, password } = req.body;
 
@@ -145,7 +145,7 @@ exports.joinRoom = async (req, res) => {
 };
 
 // Get room by ID
-exports.getRoom = async (req, res) => {
+export const getRoom = async (req, res) => {
   try {
     const { roomId } = req.params;
 
@@ -196,7 +196,7 @@ exports.getRoom = async (req, res) => {
 };
 
 // Get all rooms for current user
-exports.getMyRooms = async (req, res) => {
+export const getMyRooms = async (req, res) => {
   try {
     const rooms = await Room.find({
       'participants.user': req.user.id,
@@ -220,7 +220,7 @@ exports.getMyRooms = async (req, res) => {
 };
 
 // Update room settings
-exports.updateRoom = async (req, res) => {
+export const updateRoom = async (req, res) => {
   try {
     const { roomId } = req.params;
     const { name, settings, maxParticipants } = req.body;
@@ -264,7 +264,7 @@ exports.updateRoom = async (req, res) => {
 };
 
 // Leave room
-exports.leaveRoom = async (req, res) => {
+export const leaveRoom = async (req, res) => {
   try {
     const { roomId } = req.params;
 
@@ -307,7 +307,7 @@ exports.leaveRoom = async (req, res) => {
 };
 
 // Delete room (host only)
-exports.deleteRoom = async (req, res) => {
+export const deleteRoom = async (req, res) => {
   try {
     const { roomId } = req.params;
 
@@ -347,7 +347,7 @@ exports.deleteRoom = async (req, res) => {
 };
 
 // Update participant role (host only)
-exports.updateParticipantRole = async (req, res) => {
+export const updateParticipantRole = async (req, res) => {
   try {
     const { roomId } = req.params;
     const { participantId, role } = req.body;
@@ -400,7 +400,7 @@ exports.updateParticipantRole = async (req, res) => {
 };
 
 // Kick participant (host only)
-exports.kickParticipant = async (req, res) => {
+export const kickParticipant = async (req, res) => {
   try {
     const { roomId } = req.params;
     const { participantId } = req.body;

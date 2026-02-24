@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const strokeSchema = new mongoose.Schema({
   points: [{
@@ -70,4 +70,4 @@ const whiteboardSchema = new mongoose.Schema({
 // Index for faster room lookup
 whiteboardSchema.index({ room: 1 });
 
-module.exports = mongoose.model('Whiteboard', whiteboardSchema);
+export default mongoose.model('Whiteboard', whiteboardSchema);

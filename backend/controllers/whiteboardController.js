@@ -1,8 +1,8 @@
-const Whiteboard = require('../models/Whiteboard');
-const Room = require('../models/Room');
+import Whiteboard from '../models/Whiteboard.js';
+import Room from '../models/Room.js';
 
 // Get whiteboard data for a room
-exports.getWhiteboard = async (req, res) => {
+export const getWhiteboard = async (req, res) => {
   try {
     const { roomId } = req.params;
 
@@ -48,7 +48,7 @@ exports.getWhiteboard = async (req, res) => {
 };
 
 // Save whiteboard strokes
-exports.saveStrokes = async (req, res) => {
+export const saveStrokes = async (req, res) => {
   try {
     const { roomId } = req.params;
     const { strokes } = req.body;
@@ -110,7 +110,7 @@ exports.saveStrokes = async (req, res) => {
 };
 
 // Clear whiteboard
-exports.clearWhiteboard = async (req, res) => {
+export const clearWhiteboard = async (req, res) => {
   try {
     const { roomId } = req.params;
 
@@ -155,7 +155,7 @@ exports.clearWhiteboard = async (req, res) => {
 };
 
 // Save snapshot
-exports.saveSnapshot = async (req, res) => {
+export const saveSnapshot = async (req, res) => {
   try {
     const { roomId } = req.params;
     const { imageData, name } = req.body;
@@ -219,7 +219,7 @@ exports.saveSnapshot = async (req, res) => {
 };
 
 // Get snapshots
-exports.getSnapshots = async (req, res) => {
+export const getSnapshots = async (req, res) => {
   try {
     const { roomId } = req.params;
 
@@ -251,7 +251,7 @@ exports.getSnapshots = async (req, res) => {
 };
 
 // Undo last stroke
-exports.undoStroke = async (req, res) => {
+export const undoStroke = async (req, res) => {
   try {
     const { roomId } = req.params;
 

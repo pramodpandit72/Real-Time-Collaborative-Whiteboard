@@ -1,5 +1,5 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
 // Generate JWT token
 const generateToken = (userId) => {
@@ -9,7 +9,7 @@ const generateToken = (userId) => {
 };
 
 // Register user
-exports.register = async (req, res) => {
+export const register = async (req, res) => {
   try {
     const { username, email, password } = req.body;
 
@@ -72,7 +72,7 @@ exports.register = async (req, res) => {
 };
 
 // Login user
-exports.login = async (req, res) => {
+export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
@@ -141,7 +141,7 @@ exports.login = async (req, res) => {
 };
 
 // Get current user
-exports.getMe = async (req, res) => {
+export const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
       .populate('createdRooms', 'roomId name createdAt')
@@ -162,7 +162,7 @@ exports.getMe = async (req, res) => {
 };
 
 // Update user profile
-exports.updateProfile = async (req, res) => {
+export const updateProfile = async (req, res) => {
   try {
     const { username, avatar } = req.body;
 
@@ -192,7 +192,7 @@ exports.updateProfile = async (req, res) => {
 };
 
 // Change password
-exports.changePassword = async (req, res) => {
+export const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
 
@@ -245,7 +245,7 @@ exports.changePassword = async (req, res) => {
 };
 
 // Google OAuth callback handler
-exports.googleCallback = async (req, res) => {
+export const googleCallback = async (req, res) => {
   try {
     const token = generateToken(req.user._id);
     
@@ -260,7 +260,7 @@ exports.googleCallback = async (req, res) => {
 };
 
 // Logout
-exports.logout = (req, res) => {
+export const logout = (req, res) => {
   req.logout((err) => {
     if (err) {
       return res.status(500).json({
