@@ -1,4 +1,4 @@
-import 'dotenv/config';
+
 import express from 'express';
 import http from 'http';
 import { Server } from 'socket.io';
@@ -6,6 +6,7 @@ import cors from 'cors';
 import mongoose from 'mongoose';
 import passport from 'passport';
 import session from 'express-session';
+import 'dotenv/config';
 
 // Import routes
 import authRoutes from './routes/auth.js';
@@ -53,15 +54,51 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
+// Connect to MongoDB with retry logic
+const connectWithRetry = async (retries = 10, delay = 5000) => {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      await mongoose.connect(process.env.MONGODB_URI, {
+        serverSelectionTimeoutMS: 10000,
+        socketTimeoutMS: 45000,
+      });
+      console.log('Connected to MongoDB');
+      return;
+    } catch (err) {
+      console.error(`MongoDB connection attempt ${attempt}/${retries} failed:`, err.message);
+      if (attempt < retries) {
+        console.log(`Retrying in ${delay / 1000}s...`);
+        await new Promise(res => setTimeout(res, delay));
+      } else {
+        console.error('All MongoDB connection attempts failed. Server will continue running — reconnect will be attempted automatically by Mongoose.');
+      }
+    }
+  }
+};
+
+// Mongoose connection event listeners
+mongoose.connection.on('disconnected', () => console.warn('MongoDB disconnected. Mongoose will attempt to reconnect...'));
+mongoose.connection.on('reconnected', () => console.log('MongoDB reconnected'));
+mongoose.connection.on('error', (err) => console.error('MongoDB error:', err.message));
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+  await mongoose.connection.close();
+  console.log('MongoDB connection closed due to app termination');
+  process.exit(0);
+});
+
+connectWithRetry();
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/whiteboard', whiteboardRoutes);
+
+// Root route
+app.get('/', (req, res) => {
+  res.json({ status: 'ok', message: 'Collaborative Whiteboard API is running' });
+});
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -74,8 +111,8 @@ socketHandler(io);
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ 
-    success: false, 
+  res.status(500).json({
+    success: false,
     message: 'Something went wrong!',
     error: process.env.NODE_ENV === 'development' ? err.message : undefined
   });
