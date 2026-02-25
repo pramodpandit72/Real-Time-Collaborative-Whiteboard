@@ -53,6 +53,7 @@ const WhiteboardRoom = () => {
   const [remoteCursors, setRemoteCursors] = useState({});
   const [copiedId, setCopiedId] = useState(false);
   const [canvasDark, setCanvasDark] = useState(false);
+  const [zoom, setZoom] = useState(1);
 
   const canvasRef = useRef(null);
 
@@ -262,17 +263,20 @@ const WhiteboardRoom = () => {
     }
   }, [userRole, roomId, clearBoard]);
 
-  // Save snapshot
-  const handleSaveSnapshot = useCallback(async () => {
+  // Save snapshot — download as PNG directly
+  const handleSaveSnapshot = useCallback(() => {
     if (canvasRef.current) {
-      const imageData = canvasRef.current.toDataURL('image/png');
-      try {
-        await whiteboardService.saveSnapshot(roomId, imageData, `Snapshot ${new Date().toLocaleString()}`);
-      } catch (err) {
-        console.error('Failed to save snapshot:', err);
-      }
+      const link = document.createElement('a');
+      link.download = `collabboard-${roomId}-${Date.now()}.png`;
+      link.href = canvasRef.current.toDataURL('image/png');
+      link.click();
     }
   }, [roomId]);
+
+  // Zoom handlers
+  const handleZoomIn = () => setZoom(z => Math.min(z + 0.1, 3));
+  const handleZoomOut = () => setZoom(z => Math.max(z - 0.1, 0.3));
+  const handleZoomReset = () => setZoom(1);
 
   // Download as image
   const handleDownload = useCallback(() => {
@@ -506,6 +510,10 @@ const WhiteboardRoom = () => {
           canDraw={userRole === 'host' || room?.settings?.allowParticipantDraw}
           canvasDark={canvasDark}
           onToggleCanvasDark={() => setCanvasDark(!canvasDark)}
+          zoom={zoom}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onZoomReset={handleZoomReset}
         />
 
         {/* Canvas */}
@@ -522,6 +530,7 @@ const WhiteboardRoom = () => {
             remoteCursors={remoteCursors}
             addToHistory={addToHistory}
             canvasDark={canvasDark}
+            zoom={zoom}
           />
 
           {/* Remote Screen Share Overlay */}
