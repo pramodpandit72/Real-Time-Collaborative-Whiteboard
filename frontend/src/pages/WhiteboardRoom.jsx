@@ -52,6 +52,7 @@ const WhiteboardRoom = () => {
   const [typingUsers, setTypingUsers] = useState([]);
   const [remoteCursors, setRemoteCursors] = useState({});
   const [copiedId, setCopiedId] = useState(false);
+  const [canvasDark, setCanvasDark] = useState(false);
 
   const canvasRef = useRef(null);
 
@@ -503,6 +504,8 @@ const WhiteboardRoom = () => {
           canRedo={historyIndex < history.length - 1}
           canClear={userRole === 'host'}
           canDraw={userRole === 'host' || room?.settings?.allowParticipantDraw}
+          canvasDark={canvasDark}
+          onToggleCanvasDark={() => setCanvasDark(!canvasDark)}
         />
 
         {/* Canvas */}
@@ -518,6 +521,7 @@ const WhiteboardRoom = () => {
             canDraw={userRole === 'host' || room?.settings?.allowParticipantDraw}
             remoteCursors={remoteCursors}
             addToHistory={addToHistory}
+            canvasDark={canvasDark}
           />
 
           {/* Remote Screen Share Overlay */}

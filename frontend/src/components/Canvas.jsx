@@ -1,12 +1,11 @@
 import { useRef, useEffect, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { useSocket } from '../context/SocketContext';
-import { useTheme } from '../context/ThemeContext';
 
 const SHAPE_TOOLS = new Set(['line', 'arrow', 'rectangle', 'circle', 'triangle', 'diamond', 'star']);
 
 const Canvas = forwardRef(({ 
   strokes, setStrokes, tool, color, brushSize, 
-  roomId, canDraw, remoteCursors, addToHistory
+  roomId, canDraw, remoteCursors, addToHistory, canvasDark
 }, ref) => {
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
@@ -17,9 +16,8 @@ const Canvas = forwardRef(({
   const [textInput, setTextInput] = useState(null);
   const textRef = useRef(null);
   const { sendDrawStart, sendDrawMove, sendDrawEnd, sendCursorMove } = useSocket();
-  const { isDark } = useTheme();
 
-  const BG_COLOR = isDark ? '#1a1a2e' : '#ffffff';
+  const BG_COLOR = canvasDark ? '#1a1a2e' : '#ffffff';
   const ERASER_COLOR = BG_COLOR;
 
   useImperativeHandle(ref, () => canvasRef.current);
@@ -50,7 +48,7 @@ const Canvas = forwardRef(({
   }, []);
 
   // Redraw on stroke or theme change
-  useEffect(() => { redrawCanvas(); }, [strokes, isDark]);
+  useEffect(() => { redrawCanvas(); }, [strokes, canvasDark]);
 
   const redrawCanvas = useCallback(() => {
     const ctx = ctxRef.current;
@@ -63,7 +61,7 @@ const Canvas = forwardRef(({
     ctx.fillRect(0, 0, width, height);
 
     strokes.forEach(s => renderStroke(ctx, s));
-  }, [strokes, isDark]);
+  }, [strokes, canvasDark]);
 
   // ─── Stroke Renderer ───
   const renderStroke = (ctx, s) => {
@@ -237,7 +235,7 @@ const Canvas = forwardRef(({
   const cursor = !canDraw ? 'cursor-not-allowed' : tool === 'text' ? 'cursor-text' : tool === 'eraser' ? 'cursor-cell' : 'cursor-crosshair';
 
   return (
-    <div ref={containerRef} className={`w-full h-full relative ${isDark ? 'bg-[#1a1a2e]' : 'bg-white'}`}>
+    <div ref={containerRef} className={`w-full h-full relative ${canvasDark ? 'bg-[#1a1a2e]' : 'bg-white'}`}>
       <canvas
         ref={canvasRef}
         className={`absolute inset-0 ${cursor}`}
