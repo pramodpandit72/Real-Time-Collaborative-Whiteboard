@@ -10,8 +10,8 @@ import ChatPanel from '../components/ChatPanel';
 import ParticipantsPanel from '../components/ParticipantsPanel';
 import ScreenShare from '../components/ScreenShare';
 import { 
-  ArrowLeft, Users, MessageCircle, Settings, Copy, 
-  Loader2, Moon, Sun, X, Monitor, Download
+  ArrowLeft, Users, MessageCircle, Settings, Copy, Check,
+  Loader2, Moon, Sun, X, Monitor, MonitorOff, Download, Pen
 } from 'lucide-react';
 
 const WhiteboardRoom = () => {
@@ -51,6 +51,7 @@ const WhiteboardRoom = () => {
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [typingUsers, setTypingUsers] = useState([]);
   const [remoteCursors, setRemoteCursors] = useState({});
+  const [copiedId, setCopiedId] = useState(false);
 
   const canvasRef = useRef(null);
 
@@ -285,6 +286,8 @@ const WhiteboardRoom = () => {
   // Copy room ID
   const copyRoomId = () => {
     navigator.clipboard.writeText(roomId);
+    setCopiedId(true);
+    setTimeout(() => setCopiedId(false), 2000);
   };
 
   // Toggle chat with unread reset
@@ -344,59 +347,76 @@ const WhiteboardRoom = () => {
   return (
     <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900 overflow-hidden">
       {/* Header */}
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex-shrink-0">
+      <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border-b border-gray-200/80 dark:border-gray-700/80 px-4 py-2 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => navigate('/dashboard')}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 transition"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl text-gray-500 dark:text-gray-400 transition"
+              title="Back to Dashboard"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
             
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900 dark:text-white">{room?.name}</h1>
-              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-                <span className="font-mono">{roomId}</span>
-                <button onClick={copyRoomId} className="hover:text-gray-700 dark:hover:text-gray-200">
-                  <Copy className="w-4 h-4" />
-                </button>
-                {userRole === 'host' && (
-                  <span className="px-2 py-0.5 text-xs bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 rounded">
-                    Host
-                  </span>
-                )}
+            <div className="w-px h-8 bg-gray-200 dark:bg-gray-700" />
+
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center">
+                <Pen className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <h1 className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">{room?.name}</h1>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={copyRoomId}
+                    className="flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 font-mono transition"
+                    title="Copy Room ID"
+                  >
+                    {copiedId ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                    <span>{roomId}</span>
+                  </button>
+                  {userRole === 'host' && (
+                    <span className="px-1.5 py-0.5 text-[10px] font-semibold bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400 rounded">
+                      HOST
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {/* Connection status */}
-            <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-50 dark:bg-gray-700/50 mr-1">
+              <div className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+              <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:inline">{connected ? 'Live' : 'Offline'}</span>
+            </div>
             
             {/* Screen Share */}
             {room?.settings?.allowScreenShare && (
               <button
                 onClick={isScreenSharing ? handleStopScreenShare : handleStartScreenShare}
-                className={`p-2 rounded-lg transition ${
+                className={`p-2 rounded-xl transition ${
                   isScreenSharing 
-                    ? 'bg-red-100 dark:bg-red-900 text-red-600 dark:text-red-400' 
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+                    ? 'bg-red-100 dark:bg-red-900/60 text-red-600 dark:text-red-400' 
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
                 }`}
                 title={isScreenSharing ? 'Stop Screen Share' : 'Share Screen'}
               >
-                <Monitor className="w-5 h-5" />
+                {isScreenSharing ? <MonitorOff className="w-5 h-5" /> : <Monitor className="w-5 h-5" />}
               </button>
             )}
 
             {/* Download */}
             <button
               onClick={handleDownload}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 transition"
-              title="Download as Image"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl text-gray-500 dark:text-gray-400 transition"
+              title="Download as PNG"
             >
               <Download className="w-5 h-5" />
             </button>
+
+            <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-0.5" />
 
             {/* Participants */}
             <button
@@ -405,14 +425,14 @@ const WhiteboardRoom = () => {
                 setShowChat(false);
                 setShowSettings(false);
               }}
-              className={`p-2 rounded-lg transition relative ${
+              className={`p-2 rounded-xl transition relative ${
                 showParticipants 
-                  ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400' 
-                  : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+                  ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400' 
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
               }`}
             >
               <Users className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-blue-600 text-white text-xs rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                 {activeUsers.length}
               </span>
             </button>
@@ -421,15 +441,15 @@ const WhiteboardRoom = () => {
             {room?.settings?.allowChat && (
               <button
                 onClick={toggleChat}
-                className={`p-2 rounded-lg transition relative ${
+                className={`p-2 rounded-xl transition relative ${
                   showChat 
-                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400' 
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+                    ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400' 
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
                 }`}
               >
                 <MessageCircle className="w-5 h-5" />
                 {unreadMessages > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                     {unreadMessages > 9 ? '9+' : unreadMessages}
                   </span>
                 )}
@@ -444,10 +464,10 @@ const WhiteboardRoom = () => {
                   setShowChat(false);
                   setShowParticipants(false);
                 }}
-                className={`p-2 rounded-lg transition ${
+                className={`p-2 rounded-xl transition ${
                   showSettings 
-                    ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400' 
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300'
+                    ? 'bg-blue-100 dark:bg-blue-900/60 text-blue-600 dark:text-blue-400' 
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
                 }`}
               >
                 <Settings className="w-5 h-5" />
@@ -457,7 +477,7 @@ const WhiteboardRoom = () => {
             {/* Theme toggle */}
             <button
               onClick={toggleTheme}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-300 transition"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl text-gray-500 dark:text-gray-400 transition"
             >
               {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
@@ -524,7 +544,7 @@ const WhiteboardRoom = () => {
             room={room}
             activeUsers={activeUsers}
             userRole={userRole}
-            currentUserId={user?.id}
+            currentUserId={user?.id || user?._id}
             onClose={() => setShowParticipants(false)}
           />
         )}
@@ -560,55 +580,45 @@ const SettingsPanel = ({ room, roomId, onClose }) => {
     updateSettings(roomId, newSettings);
   };
 
+  const settingItems = [
+    { key: 'allowParticipantDraw', label: 'Allow Participants to Draw', desc: 'Let everyone draw on the canvas' },
+    { key: 'allowChat', label: 'Allow Chat', desc: 'Enable real-time messaging' },
+    { key: 'allowScreenShare', label: 'Allow Screen Share', desc: 'Let participants share their screen' },
+    { key: 'allowFileShare', label: 'Allow File Share', desc: 'Enable file sharing in chat' },
+  ];
+
   return (
     <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col">
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         <h3 className="font-semibold text-gray-900 dark:text-white">Room Settings</h3>
-        <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+        <button onClick={onClose} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
           <X className="w-5 h-5 text-gray-500" />
         </button>
       </div>
 
-      <div className="p-4 space-y-4">
-        <SettingToggle
-          label="Allow Participants to Draw"
-          checked={settings.allowParticipantDraw}
-          onChange={() => handleToggle('allowParticipantDraw')}
-        />
-        <SettingToggle
-          label="Allow Chat"
-          checked={settings.allowChat}
-          onChange={() => handleToggle('allowChat')}
-        />
-        <SettingToggle
-          label="Allow Screen Share"
-          checked={settings.allowScreenShare}
-          onChange={() => handleToggle('allowScreenShare')}
-        />
-        <SettingToggle
-          label="Allow File Share"
-          checked={settings.allowFileShare}
-          onChange={() => handleToggle('allowFileShare')}
-        />
+      <div className="p-4 space-y-3">
+        {settingItems.map(item => (
+          <div key={item.key} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/40">
+            <div className="flex-1 mr-3">
+              <p className="text-sm font-medium text-gray-900 dark:text-white">{item.label}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{item.desc}</p>
+            </div>
+            <button
+              onClick={() => handleToggle(item.key)}
+              className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
+                settings[item.key] ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <div
+                className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform"
+                style={{ transform: settings[item.key] ? 'translateX(22px)' : 'translateX(2px)' }}
+              />
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );
 };
-
-const SettingToggle = ({ label, checked, onChange }) => (
-  <div className="flex items-center justify-between">
-    <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
-    <button
-      onClick={onChange}
-      className={`w-11 h-6 rounded-full transition ${
-        checked ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
-      }`}
-    >
-      <div className={`w-5 h-5 bg-white rounded-full shadow transform transition ${
-        checked ? 'translate-x-5' : 'translate-x-0.5'
-      }`} />
-    </button>
-  </div>
-);
 
 export default WhiteboardRoom;
