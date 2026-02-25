@@ -12,7 +12,7 @@ export default (io) => {
   io.use(async (socket, next) => {
     try {
       const token = socket.handshake.auth.token;
-      
+
       if (!token) {
         return next(new Error('Authentication error'));
       }
@@ -44,7 +44,7 @@ export default (io) => {
     socket.on('join-room', async (roomId) => {
       try {
         const room = await Room.findOne({ roomId });
-        
+
         if (!room) {
           socket.emit('error', { message: 'Room not found' });
           return;
@@ -98,7 +98,7 @@ export default (io) => {
         // Send updated active users list
         const populatedRoom = await Room.findOne({ roomId })
           .populate('activeUsers', 'username avatar');
-        
+
         io.to(roomId).emit('active-users', {
           users: populatedRoom.activeUsers
         });
@@ -118,7 +118,7 @@ export default (io) => {
     // Drawing events
     socket.on('draw', async (data) => {
       const { roomId, stroke } = data;
-      
+
       // Broadcast to all other users in the room
       socket.to(roomId).emit('draw', {
         stroke,
@@ -151,7 +151,7 @@ export default (io) => {
     // Draw end event
     socket.on('draw-end', async (data) => {
       const { roomId, stroke } = data;
-      
+
       socket.to(roomId).emit('draw-end', {
         stroke,
         userId: socket.user._id
@@ -164,7 +164,7 @@ export default (io) => {
           if (room) {
             await Whiteboard.findOneAndUpdate(
               { room: room._id },
-              { 
+              {
                 $push: { strokes: { ...stroke, userId: socket.user._id } },
                 $inc: { version: 1 }
               },
@@ -181,7 +181,7 @@ export default (io) => {
     socket.on('clear-board', async (roomId) => {
       try {
         const room = await Room.findOne({ roomId });
-        
+
         // Only host can clear
         if (room.host.toString() !== socket.user._id.toString()) {
           socket.emit('error', { message: 'Only the host can clear the board' });
@@ -237,7 +237,7 @@ export default (io) => {
 
       try {
         const room = await Room.findOne({ roomId });
-        
+
         if (!room || !room.settings.allowChat) {
           socket.emit('error', { message: 'Chat is disabled' });
           return;
@@ -340,7 +340,7 @@ export default (io) => {
 
       try {
         const room = await Room.findOne({ roomId });
-        
+
         if (!room.settings.allowFileShare) {
           socket.emit('error', { message: 'File sharing is disabled' });
           return;
@@ -379,7 +379,7 @@ export default (io) => {
 
       try {
         const room = await Room.findOne({ roomId });
-        
+
         if (room.host.toString() !== socket.user._id.toString()) {
           socket.emit('error', { message: 'Only the host can update settings' });
           return;
@@ -401,9 +401,15 @@ export default (io) => {
 
       try {
         const room = await Room.findOne({ roomId });
-        
+
         if (room.host.toString() !== socket.user._id.toString()) {
           socket.emit('error', { message: 'Only the host can kick users' });
+          return;
+        }
+
+        // Prevent host from kicking themselves
+        if (userId === socket.user._id.toString()) {
+          socket.emit('error', { message: 'You cannot kick yourself' });
           return;
         }
 
@@ -427,15 +433,15 @@ export default (io) => {
     // Handle disconnect
     socket.on('disconnect', async () => {
       console.log(`User disconnected: ${socket.user.username} (${socket.id})`);
-      
+
       const connection = activeConnections.get(socket.id);
-      
+
       if (connection) {
         // Leave all rooms
         for (const roomId of connection.rooms) {
           await handleLeaveRoom(socket, roomId);
         }
-        
+
         activeConnections.delete(socket.id);
       }
     });
@@ -445,14 +451,14 @@ export default (io) => {
   async function handleLeaveRoom(socket, roomId) {
     try {
       socket.leave(roomId);
-      
+
       const connection = activeConnections.get(socket.id);
       if (connection) {
         connection.rooms.delete(roomId);
       }
 
       const room = await Room.findOne({ roomId });
-      
+
       if (room) {
         // Remove from active users
         room.activeUsers = room.activeUsers.filter(
@@ -471,7 +477,7 @@ export default (io) => {
         // Send updated active users list
         const populatedRoom = await Room.findOne({ roomId })
           .populate('activeUsers', 'username avatar');
-        
+
         io.to(roomId).emit('active-users', {
           users: populatedRoom?.activeUsers || []
         });
