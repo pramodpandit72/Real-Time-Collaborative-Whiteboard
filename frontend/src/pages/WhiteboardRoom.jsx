@@ -217,6 +217,31 @@ const WhiteboardRoom = () => {
       setRemoteScreenShare(null);
     });
 
+    // Screen share frame (image data from sharer)
+    socket.on('screen-share-frame', (data) => {
+      setRemoteScreenShare(prev => ({
+        ...prev,
+        userId: data.userId,
+        username: data.username,
+        frame: data.frame
+      }));
+    });
+
+    // File sharing
+    socket.on('file-shared', (data) => {
+      setMessages(prev => [...prev, data.message]);
+      if (!showChat) {
+        setUnreadMessages(prev => prev + 1);
+      }
+    });
+
+    // Heartbeat — keep online status alive
+    const heartbeatInterval = setInterval(() => {
+      if (socket.connected) {
+        socket.emit('heartbeat');
+      }
+    }, 15000);
+
     return () => {
       socket.off('room-joined');
       socket.off('user-joined');
@@ -235,6 +260,9 @@ const WhiteboardRoom = () => {
       socket.off('settings-updated');
       socket.off('screen-share-started');
       socket.off('screen-share-stopped');
+      socket.off('screen-share-frame');
+      socket.off('file-shared');
+      clearInterval(heartbeatInterval);
     };
   }, [socket, historyIndex, showChat, user?.id, navigate]);
 
@@ -539,11 +567,25 @@ const WhiteboardRoom = () => {
             zoom={zoom}
           />
 
-          {/* Remote Screen Share Overlay */}
+          {/* Remote Screen Share Viewer */}
           {remoteScreenShare && (
-            <div className="absolute top-4 left-4 bg-blue-600 text-white px-3 py-2 rounded-lg text-sm flex items-center gap-2">
-              <Monitor className="w-4 h-4" />
-              {remoteScreenShare.username} is sharing their screen
+            <div className="absolute bottom-4 right-4 z-30 max-w-sm shadow-2xl rounded-xl overflow-hidden border border-blue-500/40">
+              <div className="flex items-center justify-between px-3 py-1.5 bg-blue-600 text-white">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                  <span className="text-xs font-medium">{remoteScreenShare.username}'s Screen</span>
+                </div>
+                <button onClick={() => setRemoteScreenShare(null)}
+                  className="text-white/70 hover:text-white text-xs">✕</button>
+              </div>
+              {remoteScreenShare.frame ? (
+                <img src={remoteScreenShare.frame} alt="Shared screen"
+                  className="w-full h-auto bg-gray-900" style={{ maxWidth: 360 }} />
+              ) : (
+                <div className="bg-gray-900 px-4 py-6 text-center text-white/50 text-xs">
+                  Waiting for screen...
+                </div>
+              )}
             </div>
           )}
         </div>

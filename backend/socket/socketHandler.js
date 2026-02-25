@@ -37,7 +37,8 @@ export default (io) => {
     // Store connection
     activeConnections.set(socket.id, {
       user: socket.user,
-      rooms: new Set()
+      rooms: new Set(),
+      lastSeen: Date.now()
     });
 
     // Join room
@@ -332,6 +333,22 @@ export default (io) => {
       socket.to(roomId).emit('screen-share-stopped', {
         userId: socket.user._id
       });
+    });
+
+    // Screen share frame relay — broadcast captured frames to room
+    socket.on('screen-share-frame', (data) => {
+      const { roomId, frame } = data;
+      socket.to(roomId).emit('screen-share-frame', {
+        frame,
+        userId: socket.user._id,
+        username: socket.user.username
+      });
+    });
+
+    // Heartbeat — keep user alive
+    socket.on('heartbeat', () => {
+      const conn = activeConnections.get(socket.id);
+      if (conn) conn.lastSeen = Date.now();
     });
 
     // File sharing

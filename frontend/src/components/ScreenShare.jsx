@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { MonitorOff, Maximize2, Minimize2, Move } from 'lucide-react';
+import { MonitorOff, Maximize2, Minimize2 } from 'lucide-react';
+import { useSocket } from '../context/SocketContext';
 
 const ScreenShare = ({ roomId, onClose }) => {
   const [stream, setStream] = useState(null);
@@ -8,25 +9,36 @@ const ScreenShare = ({ roomId, onClose }) => {
   const [minimized, setMinimized] = useState(false);
   const [position, setPosition] = useState({ x: 16, y: 16 });
   const videoRef = useRef(null);
-  const containerRef = useRef(null);
+  const canvasRef = useRef(null);
+  const frameInterval = useRef(null);
   const dragging = useRef(false);
+  const { socket } = useSocket();
 
   useEffect(() => {
     startScreenShare();
-    return () => stopScreenShare();
+    return () => { stopScreenShare(); stopFrameCapture(); };
   }, []);
 
   const startScreenShare = async () => {
     try {
       setStatus('starting');
       const mediaStream = await navigator.mediaDevices.getDisplayMedia({
-        video: { cursor: 'always', displaySurface: 'monitor' },
+        video: { cursor: 'always', displaySurface: 'monitor', frameRate: 5 },
         audio: false
       });
       setStream(mediaStream);
       setStatus('active');
+
       if (videoRef.current) videoRef.current.srcObject = mediaStream;
-      mediaStream.getVideoTracks()[0].onended = () => { stopScreenShare(); onClose(); };
+
+      // Start streaming frames to other users
+      startFrameCapture(mediaStream);
+
+      mediaStream.getVideoTracks()[0].onended = () => {
+        stopScreenShare();
+        stopFrameCapture();
+        onClose();
+      };
     } catch (err) {
       setError(err.name === 'NotAllowedError' ? 'Screen sharing was cancelled' : 'Failed to start screen sharing');
       setStatus('error');
@@ -34,12 +46,43 @@ const ScreenShare = ({ roomId, onClose }) => {
     }
   };
 
+  // Capture frames from video and send via socket
+  const startFrameCapture = (mediaStream) => {
+    const video = document.createElement('video');
+    video.srcObject = mediaStream;
+    video.play();
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    frameInterval.current = setInterval(() => {
+      if (video.readyState >= 2 && socket?.connected) {
+        // Scale down for bandwidth (max 640px wide)
+        const scale = Math.min(1, 640 / video.videoWidth);
+        canvas.width = video.videoWidth * scale;
+        canvas.height = video.videoHeight * scale;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const frame = canvas.toDataURL('image/jpeg', 0.5);
+        socket.emit('screen-share-frame', { roomId, frame });
+      }
+    }, 500); // 2 FPS — enough for screen sharing
+  };
+
+  const stopFrameCapture = () => {
+    if (frameInterval.current) {
+      clearInterval(frameInterval.current);
+      frameInterval.current = null;
+    }
+  };
+
   const stopScreenShare = () => {
     if (stream) { stream.getTracks().forEach(t => t.stop()); setStream(null); }
+    stopFrameCapture();
     setStatus('stopped');
   };
 
-  // ─── Drag handler ───
+  // Drag handler
   const onDragStart = useCallback((e) => {
     e.preventDefault();
     dragging.current = true;
@@ -78,16 +121,15 @@ const ScreenShare = ({ roomId, onClose }) => {
   }
 
   return (
-    <div ref={containerRef}
-      className="fixed z-40 transition-shadow"
+    <div className="fixed z-40 transition-shadow"
       style={{ left: position.x, top: position.y, ...(minimized ? { width: 200 } : {}) }}>
       
-      {/* Header bar */}
+      {/* Header */}
       <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-red-500 text-white rounded-t-xl cursor-move select-none"
         onMouseDown={onDragStart} onTouchStart={onDragStart}>
         <div className="flex items-center gap-1.5">
           <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-          <span className="text-xs font-medium">Screen Share</span>
+          <span className="text-xs font-medium">Sharing · Live</span>
         </div>
         <div className="flex items-center gap-1">
           <button onClick={() => setMinimized(!minimized)}
@@ -101,7 +143,6 @@ const ScreenShare = ({ roomId, onClose }) => {
         </div>
       </div>
 
-      {/* Video */}
       {!minimized && (
         <div className="bg-gray-900 rounded-b-xl overflow-hidden shadow-2xl border border-gray-700/50" style={{ width: 360 }}>
           <video ref={videoRef} autoPlay playsInline muted className="w-full h-auto" />
@@ -110,7 +151,7 @@ const ScreenShare = ({ roomId, onClose }) => {
 
       {minimized && (
         <div className="bg-gray-900 rounded-b-xl px-3 py-2 text-white/60 text-xs border border-gray-700/50">
-          Sharing... (click expand)
+          Sharing... (expand ↗)
         </div>
       )}
     </div>
