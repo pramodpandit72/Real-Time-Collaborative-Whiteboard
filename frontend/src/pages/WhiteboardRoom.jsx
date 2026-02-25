@@ -9,9 +9,11 @@ import Toolbar from '../components/Toolbar';
 import ChatPanel from '../components/ChatPanel';
 import ParticipantsPanel from '../components/ParticipantsPanel';
 import ScreenShare from '../components/ScreenShare';
+import CameraPanel, { RemoteCameraFeed } from '../components/CameraPanel';
 import { 
   ArrowLeft, Users, MessageCircle, Settings, Copy, Check,
-  Loader2, Moon, Sun, X, Monitor, MonitorOff, Download, Pen
+  Loader2, Moon, Sun, X, Monitor, MonitorOff, Download, Pen,
+  Video, VideoOff, Maximize2, Minimize2
 } from 'lucide-react';
 
 const WhiteboardRoom = () => {
@@ -56,6 +58,9 @@ const WhiteboardRoom = () => {
   const [canvasDark, setCanvasDark] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [sidebarWidth, setSidebarWidth] = useState(72);
+  const [showCamera, setShowCamera] = useState(false);
+  const [remoteCameras, setRemoteCameras] = useState({});
+  const [screenShareExpanded, setScreenShareExpanded] = useState(false);
 
   const canvasRef = useRef(null);
 
@@ -242,6 +247,29 @@ const WhiteboardRoom = () => {
       }
     }, 15000);
 
+    // Camera events
+    socket.on('camera-frame', (data) => {
+      setRemoteCameras(prev => ({
+        ...prev,
+        [data.userId]: { username: data.username, frame: data.frame }
+      }));
+    });
+
+    socket.on('camera-started', (data) => {
+      setRemoteCameras(prev => ({
+        ...prev,
+        [data.userId]: { username: data.username, frame: null }
+      }));
+    });
+
+    socket.on('camera-stopped', (data) => {
+      setRemoteCameras(prev => {
+        const next = { ...prev };
+        delete next[data.userId];
+        return next;
+      });
+    });
+
     return () => {
       socket.off('room-joined');
       socket.off('user-joined');
@@ -262,6 +290,9 @@ const WhiteboardRoom = () => {
       socket.off('screen-share-stopped');
       socket.off('screen-share-frame');
       socket.off('file-shared');
+      socket.off('camera-frame');
+      socket.off('camera-started');
+      socket.off('camera-stopped');
       clearInterval(heartbeatInterval);
     };
   }, [socket, historyIndex, showChat, user?.id, navigate]);
@@ -442,6 +473,19 @@ const WhiteboardRoom = () => {
               </button>
             )}
 
+            {/* Camera */}
+            <button
+              onClick={() => setShowCamera(!showCamera)}
+              className={`p-2 rounded-xl transition ${
+                showCamera 
+                  ? 'bg-green-100 dark:bg-green-900/60 text-green-600 dark:text-green-400' 
+                  : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
+              }`}
+              title={showCamera ? 'Close Camera' : 'Open Camera'}
+            >
+              {showCamera ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+            </button>
+
             {/* Download */}
             <button
               onClick={handleDownload}
@@ -569,23 +613,44 @@ const WhiteboardRoom = () => {
 
           {/* Remote Screen Share Viewer */}
           {remoteScreenShare && (
-            <div className="absolute bottom-4 right-4 z-30 max-w-sm shadow-2xl rounded-xl overflow-hidden border border-blue-500/40">
+            <div className={`absolute z-30 shadow-2xl rounded-xl overflow-hidden border border-blue-500/40 transition-all ${
+              screenShareExpanded 
+                ? 'inset-4' 
+                : 'bottom-4 right-4 max-w-sm'
+            }`}>
               <div className="flex items-center justify-between px-3 py-1.5 bg-blue-600 text-white">
                 <div className="flex items-center gap-1.5">
                   <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
                   <span className="text-xs font-medium">{remoteScreenShare.username}'s Screen</span>
                 </div>
-                <button onClick={() => setRemoteScreenShare(null)}
-                  className="text-white/70 hover:text-white text-xs">✕</button>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setScreenShareExpanded(!screenShareExpanded)}
+                    className="p-0.5 hover:bg-blue-700 rounded transition" title={screenShareExpanded ? 'Minimize' : 'Expand'}>
+                    {screenShareExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                  </button>
+                  <button onClick={() => { setRemoteScreenShare(null); setScreenShareExpanded(false); }}
+                    className="text-white/70 hover:text-white text-xs ml-1">✕</button>
+                </div>
               </div>
               {remoteScreenShare.frame ? (
                 <img src={remoteScreenShare.frame} alt="Shared screen"
-                  className="w-full h-auto bg-gray-900" style={{ maxWidth: 360 }} />
+                  className={`w-full h-auto bg-gray-900 ${screenShareExpanded ? 'max-h-[calc(100vh-120px)] object-contain' : ''}`}
+                  style={screenShareExpanded ? {} : { maxWidth: 360 }} />
               ) : (
                 <div className="bg-gray-900 px-4 py-6 text-center text-white/50 text-xs">
                   Waiting for screen...
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Remote Camera Feeds */}
+          <RemoteCameraFeed feeds={remoteCameras} />
+
+          {/* Local Camera Panel */}
+          {showCamera && (
+            <div className="absolute bottom-4 left-4 z-30">
+              <CameraPanel roomId={roomId} onClose={() => setShowCamera(false)} />
             </div>
           )}
         </div>

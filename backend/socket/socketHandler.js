@@ -351,6 +351,29 @@ export default (io) => {
       if (conn) conn.lastSeen = Date.now();
     });
 
+    // Camera events
+    socket.on('camera-frame', (data) => {
+      const { roomId, frame } = data;
+      socket.to(roomId).emit('camera-frame', {
+        frame,
+        userId: socket.user._id,
+        username: socket.user.username
+      });
+    });
+
+    socket.on('camera-started', (roomId) => {
+      socket.to(roomId).emit('camera-started', {
+        userId: socket.user._id,
+        username: socket.user.username
+      });
+    });
+
+    socket.on('camera-stopped', (roomId) => {
+      socket.to(roomId).emit('camera-stopped', {
+        userId: socket.user._id
+      });
+    });
+
     // File sharing
     socket.on('file-share', async (data) => {
       const { roomId, fileData } = data;
