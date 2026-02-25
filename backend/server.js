@@ -22,20 +22,45 @@ import './config/passport.js';
 const app = express();
 const server = http.createServer(app);
 
+// Allowed origins for CORS (dev + production)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+];
+// Add production CLIENT_URL if set (ensure it has https:// prefix)
+if (process.env.CLIENT_URL) {
+  let clientUrl = process.env.CLIENT_URL.trim();
+  if (!clientUrl.startsWith('http://') && !clientUrl.startsWith('https://')) {
+    clientUrl = 'https://' + clientUrl;
+  }
+  // Remove trailing slash
+  clientUrl = clientUrl.replace(/\/+$/, '');
+  allowedOrigins.push(clientUrl);
+  // Store the corrected URL for later use
+  process.env.CLIENT_URL = clientUrl;
+}
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+};
+
 // Socket.io setup with CORS
 const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST'],
-    credentials: true
-  }
+  cors: corsOptions,
 });
 
 // Middleware
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true
-}));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
