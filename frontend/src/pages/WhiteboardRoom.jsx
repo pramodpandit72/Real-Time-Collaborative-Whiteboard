@@ -34,6 +34,7 @@ const WhiteboardRoom = () => {
   const [tool, setTool] = useState('pencil');
   const [color, setColor] = useState('#000000');
   const [brushSize, setBrushSize] = useState(3);
+  const [eraserSize, setEraserSize] = useState(20);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   
@@ -54,6 +55,7 @@ const WhiteboardRoom = () => {
   const [copiedId, setCopiedId] = useState(false);
   const [canvasDark, setCanvasDark] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [sidebarWidth, setSidebarWidth] = useState(72);
 
   const canvasRef = useRef(null);
 
@@ -500,6 +502,8 @@ const WhiteboardRoom = () => {
           setColor={setColor}
           brushSize={brushSize}
           setBrushSize={setBrushSize}
+          eraserSize={eraserSize}
+          setEraserSize={setEraserSize}
           onUndo={handleUndo}
           onRedo={handleRedo}
           onClear={handleClearBoard}
@@ -514,6 +518,8 @@ const WhiteboardRoom = () => {
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
           onZoomReset={handleZoomReset}
+          sidebarWidth={sidebarWidth}
+          onSidebarResize={setSidebarWidth}
         />
 
         {/* Canvas */}
@@ -524,7 +530,7 @@ const WhiteboardRoom = () => {
             setStrokes={setStrokes}
             tool={tool}
             color={color}
-            brushSize={brushSize}
+            brushSize={tool === 'eraser' ? eraserSize : brushSize}
             roomId={roomId}
             canDraw={userRole === 'host' || room?.settings?.allowParticipantDraw}
             remoteCursors={remoteCursors}
@@ -566,12 +572,14 @@ const WhiteboardRoom = () => {
           <SettingsPanel
             room={room}
             roomId={roomId}
+            activeUsers={activeUsers}
+            currentUserId={user?.id || user?._id}
             onClose={() => setShowSettings(false)}
           />
         )}
       </div>
 
-      {/* Screen Share Modal */}
+      {/* Screen Share — floating PiP, no longer blocks canvas */}
       {showScreenShare && (
         <ScreenShare
           roomId={roomId}
@@ -582,10 +590,11 @@ const WhiteboardRoom = () => {
   );
 };
 
-// Settings Panel Component
-const SettingsPanel = ({ room, roomId, onClose }) => {
+// Settings Panel Component — with per-user permissions
+const SettingsPanel = ({ room, roomId, activeUsers, currentUserId, onClose }) => {
   const { updateSettings } = useSocket();
   const [settings, setSettings] = useState(room?.settings || {});
+  const [userPerms, setUserPerms] = useState({});
 
   const handleToggle = (key) => {
     const newSettings = { ...settings, [key]: !settings[key] };
@@ -593,15 +602,39 @@ const SettingsPanel = ({ room, roomId, onClose }) => {
     updateSettings(roomId, newSettings);
   };
 
-  const settingItems = [
-    { key: 'allowParticipantDraw', label: 'Allow Participants to Draw', desc: 'Let everyone draw on the canvas' },
+  const handleUserPerm = (userId, perm) => {
+    setUserPerms(prev => {
+      const user = prev[userId] || {};
+      const updated = { ...prev, [userId]: { ...user, [perm]: !user[perm] } };
+      // Send user-level permissions via settings
+      const newSettings = { ...settings, userPermissions: updated };
+      setSettings(newSettings);
+      updateSettings(roomId, newSettings);
+      return updated;
+    });
+  };
+
+  // Initialize per-user perms from room settings
+  useState(() => {
+    if (room?.settings?.userPermissions) {
+      setUserPerms(room.settings.userPermissions);
+    }
+  });
+
+  const globalSettings = [
+    { key: 'allowParticipantDraw', label: 'Allow Drawing (All)', desc: 'Default drawing permission for all participants' },
     { key: 'allowChat', label: 'Allow Chat', desc: 'Enable real-time messaging' },
-    { key: 'allowScreenShare', label: 'Allow Screen Share', desc: 'Let participants share their screen' },
+    { key: 'allowScreenShare', label: 'Allow Screen Share (All)', desc: 'Default screen share permission for all participants' },
     { key: 'allowFileShare', label: 'Allow File Share', desc: 'Enable file sharing in chat' },
   ];
 
+  const participants = activeUsers.filter(u => {
+    const uid = u.userId || u.id || u._id;
+    return String(uid) !== String(currentUserId);
+  });
+
   return (
-    <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col">
+    <div className="w-80 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col overflow-y-auto">
       <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         <h3 className="font-semibold text-gray-900 dark:text-white">Room Settings</h3>
         <button onClick={onClose} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
@@ -609,8 +642,10 @@ const SettingsPanel = ({ room, roomId, onClose }) => {
         </button>
       </div>
 
+      {/* Global Settings */}
       <div className="p-4 space-y-3">
-        {settingItems.map(item => (
+        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Global Defaults</p>
+        {globalSettings.map(item => (
           <div key={item.key} className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-700/40">
             <div className="flex-1 mr-3">
               <p className="text-sm font-medium text-gray-900 dark:text-white">{item.label}</p>
@@ -622,14 +657,54 @@ const SettingsPanel = ({ room, roomId, onClose }) => {
                 settings[item.key] ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
               }`}
             >
-              <div
-                className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform"
-                style={{ transform: settings[item.key] ? 'translateX(22px)' : 'translateX(2px)' }}
-              />
+              <div className="absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform"
+                style={{ transform: settings[item.key] ? 'translateX(22px)' : 'translateX(2px)' }} />
             </button>
           </div>
         ))}
       </div>
+
+      {/* Per-User Permissions */}
+      {participants.length > 0 && (
+        <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Per-User Permissions</p>
+          {participants.map(u => {
+            const uid = String(u.userId || u.id || u._id);
+            const perms = userPerms[uid] || {};
+            const canDraw = perms.canDraw !== undefined ? perms.canDraw : settings.allowParticipantDraw;
+            const canShare = perms.canShare !== undefined ? perms.canShare : settings.allowScreenShare;
+
+            return (
+              <div key={uid} className="p-3 rounded-xl bg-gray-50 dark:bg-gray-700/40 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                    {(u.username || 'U')[0].toUpperCase()}
+                  </div>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{u.username || 'User'}</span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Can Draw</span>
+                  <button onClick={() => handleUserPerm(uid, 'canDraw')}
+                    className={`relative w-9 h-5 rounded-full transition-colors ${canDraw ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                    <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform"
+                      style={{ transform: canDraw ? 'translateX(18px)' : 'translateX(2px)' }} />
+                  </button>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">Can Share Screen</span>
+                  <button onClick={() => handleUserPerm(uid, 'canShare')}
+                    className={`relative w-9 h-5 rounded-full transition-colors ${canShare ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                    <div className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow-sm transition-transform"
+                      style={{ transform: canShare ? 'translateX(18px)' : 'translateX(2px)' }} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };

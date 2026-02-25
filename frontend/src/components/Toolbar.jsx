@@ -1,14 +1,12 @@
-import { useState } from 'react';
-import { Undo2, Redo2, Trash2, Download, Minus, Plus, Type, Sun, Moon, ZoomIn, ZoomOut } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { Undo2, Redo2, Trash2, Download, Minus, Plus, Type, Sun, Moon, ZoomIn, ZoomOut, GripVertical } from 'lucide-react';
 
-/* ─── Color Palette ─── */
 const COLORS = [
   '#000000', '#ffffff', '#ef4444', '#f97316', '#eab308',
   '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6',
   '#6b7280', '#92400e', '#0d9488', '#7c3aed', '#dc2626',
 ];
 
-/* ─── Brush Types ─── */
 const BRUSHES = [
   { id: 'pencil', label: 'Pencil', icon: <PencilColorIcon /> },
   { id: 'pen', label: 'Pen', icon: <PenInkIcon /> },
@@ -31,138 +29,193 @@ const SHAPES = [
 ];
 
 const Toolbar = ({
-  tool, setTool, color, setColor, brushSize, setBrushSize,
+  tool, setTool, color, setColor,
+  brushSize, setBrushSize,
+  eraserSize, setEraserSize,
   onUndo, onRedo, onClear, onSaveSnapshot,
   canUndo, canRedo, canClear, canDraw,
   canvasDark, onToggleCanvasDark,
-  zoom, onZoomIn, onZoomOut, onZoomReset
+  zoom, onZoomIn, onZoomOut, onZoomReset,
+  sidebarWidth, onSidebarResize
 }) => {
   const [showShapes, setShowShapes] = useState(false);
-  
+  const isEraser = tool === 'eraser';
+  const activeSize = isEraser ? eraserSize : brushSize;
+  const setActiveSize = isEraser ? setEraserSize : setBrushSize;
+
+  // ─── Drag Resize Handle ───
+  const resizeRef = useRef(null);
+  const dragging = useRef(false);
+
+  const onResizeStart = useCallback((e) => {
+    e.preventDefault();
+    dragging.current = true;
+    const startX = e.clientX || e.touches?.[0]?.clientX;
+    const startW = sidebarWidth;
+
+    const onMove = (ev) => {
+      const x = ev.clientX || ev.touches?.[0]?.clientX;
+      const newW = Math.max(56, Math.min(200, startW + (x - startX)));
+      onSidebarResize(newW);
+    };
+    const onUp = () => {
+      dragging.current = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove);
+    document.addEventListener('touchend', onUp);
+  }, [sidebarWidth, onSidebarResize]);
+
+  const isWide = sidebarWidth >= 100;
+
   return (
-    <div className="bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm overflow-y-auto scrollbar-thin"
-      style={{ width: 72 }}>
-      
-      {/* ── Canvas Mode ── */}
-      <div className="px-2 pt-2 pb-1">
-        <button onClick={onToggleCanvasDark}
-          className={`w-full flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition ${
-            canvasDark ? 'bg-gray-700 text-amber-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300'
-          }`} title={canvasDark ? 'Light Canvas' : 'Dark Canvas'}>
-          {canvasDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-          {canvasDark ? 'Light' : 'Dark'}
-        </button>
-      </div>
+    <div className="relative flex h-full">
+      {/* Main toolbar */}
+      <div className="bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col shadow-sm overflow-y-auto scrollbar-thin"
+        style={{ width: sidebarWidth }}>
 
-      <Divider />
+        {/* Canvas Mode */}
+        <div className="px-1.5 pt-2 pb-1">
+          <button onClick={onToggleCanvasDark}
+            className={`w-full flex items-center justify-center gap-1 px-1.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wide transition ${
+              canvasDark ? 'bg-gray-700 text-amber-400 hover:bg-gray-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300'
+            }`} title={canvasDark ? 'Light Canvas' : 'Dark Canvas'}>
+            {canvasDark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+            {isWide && (canvasDark ? 'Light' : 'Dark')}
+          </button>
+        </div>
 
-      {/* ── Brushes ── */}
-      <Label text="Brushes" />
-      <div className="flex flex-col items-center gap-[2px] px-1">
-        {BRUSHES.map(b => (
-          <ToolBtn key={b.id} icon={b.icon} active={tool === b.id}
-            onClick={() => setTool(b.id)} disabled={!canDraw} title={b.label} />
-        ))}
-      </div>
-      <ToolBtn icon={<Type className="w-[18px] h-[18px]" />} active={tool === 'text'}
-        onClick={() => setTool('text')} disabled={!canDraw} title="Text" />
+        <Divider />
 
-      <Divider />
+        {/* Brushes */}
+        <Label text="Brushes" wide={isWide} />
+        <div className={`flex ${isWide ? 'flex-wrap justify-center gap-[2px] px-1' : 'flex-col items-center gap-[2px]'}`}>
+          {BRUSHES.map(b => (
+            <ToolBtn key={b.id} icon={b.icon} active={tool === b.id}
+              onClick={() => setTool(b.id)} disabled={!canDraw} title={b.label}
+              label={isWide ? b.label : undefined} />
+          ))}
+        </div>
+        <ToolBtn icon={<Type className="w-[18px] h-[18px]" />} active={tool === 'text'}
+          onClick={() => setTool('text')} disabled={!canDraw} title="Text"
+          label={isWide ? 'Text' : undefined} />
 
-      {/* ── Shapes ── */}
-      <Label text="Shapes" />
-      <div className="flex flex-col items-center gap-[2px] px-1">
-        {SHAPES.slice(0, showShapes ? SHAPES.length : 5).map(s => (
-          <ToolBtn key={s.id} icon={s.icon} active={tool === s.id}
-            onClick={() => setTool(s.id)} disabled={!canDraw} title={s.label} />
-        ))}
+        <Divider />
+
+        {/* Shapes */}
+        <Label text="Shapes" wide={isWide} />
+        <div className={`flex ${isWide ? 'flex-wrap justify-center gap-[2px] px-1' : 'flex-col items-center gap-[2px]'}`}>
+          {SHAPES.slice(0, showShapes ? SHAPES.length : 5).map(s => (
+            <ToolBtn key={s.id} icon={s.icon} active={tool === s.id}
+              onClick={() => setTool(s.id)} disabled={!canDraw} title={s.label} />
+          ))}
+        </div>
         {SHAPES.length > 5 && (
           <button onClick={() => setShowShapes(!showShapes)}
-            className="text-[9px] text-blue-500 hover:text-blue-600 font-medium py-1">
-            {showShapes ? '▲ Less' : `▼ +${SHAPES.length - 5} more`}
+            className="text-[9px] text-blue-500 hover:text-blue-600 font-medium py-1 text-center">
+            {showShapes ? '▲ Less' : `▼ +${SHAPES.length - 5}`}
           </button>
         )}
-      </div>
 
-      <Divider />
+        <Divider />
 
-      {/* ── Colors ── */}
-      <Label text="Colors" />
-      <div className="grid grid-cols-3 gap-[3px] px-2">
-        {COLORS.map(c => (
-          <button key={c} onClick={() => setColor(c)} disabled={!canDraw}
-            className={`w-[18px] h-[18px] rounded-md border transition-all mx-auto ${
-              color === c ? 'ring-2 ring-blue-500 ring-offset-1 scale-110' : 'border-gray-300 dark:border-gray-600 hover:scale-110'
-            } ${!canDraw ? 'opacity-40' : 'cursor-pointer'} ${c === '#ffffff' ? 'border-gray-400' : ''}`}
-            style={{ backgroundColor: c }} />
-        ))}
-      </div>
-      {/* Color Picker */}
-      <div className="flex items-center gap-1 px-2 mt-1.5">
-        <input type="color" value={color} onChange={e => setColor(e.target.value)} disabled={!canDraw}
-          className={`w-7 h-7 rounded-lg border-2 border-gray-300 dark:border-gray-600 cursor-pointer ${!canDraw ? 'opacity-40' : ''}`}
-          title="Pick any color" />
-        <span className="text-[9px] font-mono text-gray-400 dark:text-gray-500 truncate">{color}</span>
-      </div>
-
-      <Divider />
-
-      {/* ── Size ── */}
-      <Label text="Size" />
-      <div className="flex flex-col items-center gap-0 px-1">
-        <SizeBtn icon={<Plus className="w-3.5 h-3.5" />} onClick={() => setBrushSize(Math.min(brushSize + 2, 50))} disabled={!canDraw} />
-        <div className="w-10 h-10 flex items-center justify-center my-0.5">
-          <div className="rounded-full bg-gray-800 dark:bg-gray-200 transition-all"
-            style={{ width: Math.max(Math.min(brushSize, 28), 4), height: Math.max(Math.min(brushSize, 28), 4) }} />
+        {/* Colors */}
+        <Label text="Colors" wide={isWide} />
+        <div className={`grid gap-[3px] px-1.5 ${isWide ? 'grid-cols-5' : 'grid-cols-3'}`}>
+          {COLORS.map(c => (
+            <button key={c} onClick={() => setColor(c)} disabled={!canDraw}
+              className={`w-[18px] h-[18px] rounded-md border transition-all mx-auto ${
+                color === c ? 'ring-2 ring-blue-500 ring-offset-1 scale-110' : 'border-gray-300 dark:border-gray-600 hover:scale-110'
+              } ${!canDraw ? 'opacity-40' : 'cursor-pointer'} ${c === '#ffffff' ? 'border-gray-400 dark:border-gray-500' : ''}`}
+              style={{ backgroundColor: c }} />
+          ))}
         </div>
-        <SizeBtn icon={<Minus className="w-3.5 h-3.5" />} onClick={() => setBrushSize(Math.max(brushSize - 2, 1))} disabled={!canDraw} />
-        <span className="text-[10px] font-mono text-gray-400">{brushSize}px</span>
+        <div className="flex items-center gap-1 px-1.5 mt-1">
+          <input type="color" value={color} onChange={e => setColor(e.target.value)} disabled={!canDraw}
+            className={`${isWide ? 'w-8 h-8' : 'w-7 h-7'} rounded-lg border-2 border-gray-300 dark:border-gray-600 cursor-pointer ${!canDraw ? 'opacity-40' : ''}`} />
+          {isWide && <span className="text-[9px] font-mono text-gray-400 truncate">{color}</span>}
+        </div>
+
+        <Divider />
+
+        {/* Size — Separate for brush and eraser */}
+        <Label text={isEraser ? 'Eraser Size' : 'Brush Size'} wide={isWide} />
+        <div className="flex flex-col items-center gap-0 px-1">
+          <SizeBtn icon={<Plus className="w-3.5 h-3.5" />}
+            onClick={() => setActiveSize(Math.min(activeSize + 2, 50))} disabled={!canDraw} />
+          <div className="w-10 h-10 flex items-center justify-center my-0.5 relative">
+            <div className={`rounded-full transition-all ${isEraser ? 'bg-pink-400 dark:bg-pink-500' : 'bg-gray-800 dark:bg-gray-200'}`}
+              style={{ width: Math.max(Math.min(activeSize, 28), 4), height: Math.max(Math.min(activeSize, 28), 4) }} />
+          </div>
+          <SizeBtn icon={<Minus className="w-3.5 h-3.5" />}
+            onClick={() => setActiveSize(Math.max(activeSize - 2, 1))} disabled={!canDraw} />
+          <span className="text-[10px] font-mono text-gray-400">{activeSize}px</span>
+        </div>
+
+        <Divider />
+
+        {/* Zoom */}
+        <Label text="Zoom" wide={isWide} />
+        <div className="flex flex-col items-center gap-[2px]">
+          <SizeBtn icon={<ZoomIn className="w-4 h-4" />} onClick={onZoomIn} />
+          <button onClick={onZoomReset}
+            className="text-[10px] font-mono text-gray-500 dark:text-gray-400 hover:text-blue-500 py-0.5">
+            {Math.round((zoom || 1) * 100)}%
+          </button>
+          <SizeBtn icon={<ZoomOut className="w-4 h-4" />} onClick={onZoomOut} />
+        </div>
+
+        <Divider />
+
+        {/* Edit */}
+        <Label text="Edit" wide={isWide} />
+        <div className={`flex ${isWide ? 'justify-center gap-1' : 'flex-col items-center gap-[2px]'}`}>
+          <ToolBtn icon={<Undo2 className="w-[18px] h-[18px]" />} onClick={onUndo} disabled={!canUndo || !canDraw} title="Undo" />
+          <ToolBtn icon={<Redo2 className="w-[18px] h-[18px]" />} onClick={onRedo} disabled={!canRedo || !canDraw} title="Redo" />
+        </div>
+
+        <div className="flex-1" />
+
+        <div className={`flex ${isWide ? 'justify-center gap-1' : 'flex-col items-center gap-[2px]'} mb-3 px-1`}>
+          <ToolBtn icon={<Download className="w-[18px] h-[18px]" />} onClick={onSaveSnapshot} title="Save PNG" />
+          {canClear && <ToolBtn icon={<Trash2 className="w-[18px] h-[18px]" />} onClick={onClear} title="Clear" danger />}
+        </div>
       </div>
 
-      <Divider />
-
-      {/* ── Zoom ── */}
-      <Label text="Zoom" />
-      <div className="flex flex-col items-center gap-[2px]">
-        <SizeBtn icon={<ZoomIn className="w-4 h-4" />} onClick={onZoomIn} />
-        <button onClick={onZoomReset} className="text-[10px] font-mono text-gray-500 dark:text-gray-400 hover:text-blue-500 py-0.5">
-          {Math.round((zoom || 1) * 100)}%
-        </button>
-        <SizeBtn icon={<ZoomOut className="w-4 h-4" />} onClick={onZoomOut} />
-      </div>
-
-      <Divider />
-
-      {/* ── Edit ── */}
-      <Label text="Edit" />
-      <div className="flex flex-col items-center gap-[2px]">
-        <ToolBtn icon={<Undo2 className="w-[18px] h-[18px]" />} onClick={onUndo} disabled={!canUndo || !canDraw} title="Undo" />
-        <ToolBtn icon={<Redo2 className="w-[18px] h-[18px]" />} onClick={onRedo} disabled={!canRedo || !canDraw} title="Redo" />
-      </div>
-
-      <div className="flex-1" />
-
-      {/* ── Bottom Actions ── */}
-      <div className="flex flex-col items-center gap-[2px] mb-3 px-1">
-        <ToolBtn icon={<Download className="w-[18px] h-[18px]" />} onClick={onSaveSnapshot} title="Save as PNG" />
-        {canClear && <ToolBtn icon={<Trash2 className="w-[18px] h-[18px]" />} onClick={onClear} title="Clear Board" danger />}
+      {/* ── Resize Handle ── */}
+      <div ref={resizeRef}
+        onMouseDown={onResizeStart}
+        onTouchStart={onResizeStart}
+        className="w-2 flex items-center justify-center cursor-col-resize hover:bg-blue-100 dark:hover:bg-blue-900/30 active:bg-blue-200 dark:active:bg-blue-800/40 transition group"
+        title="Drag to resize toolbar">
+        <GripVertical className="w-3 h-3 text-gray-300 dark:text-gray-600 group-hover:text-blue-500 transition" />
       </div>
     </div>
   );
 };
 
 /* ─── Helpers ─── */
-const Label = ({ text }) => <span className="text-[8px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.12em] mb-0.5 mt-1.5 text-center w-full">{text}</span>;
+const Label = ({ text, wide }) => (
+  <span className={`text-[8px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-[0.12em] mb-0.5 mt-1.5 text-center w-full ${wide ? 'text-[9px]' : ''}`}>
+    {text}
+  </span>
+);
 const Divider = () => <div className="w-10 mx-auto border-t border-gray-200 dark:border-gray-700 my-1" />;
 
-const ToolBtn = ({ icon, active, onClick, disabled, title, danger }) => (
+const ToolBtn = ({ icon, active, onClick, disabled, title, danger, label }) => (
   <button onClick={onClick} disabled={disabled} title={title}
-    className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all mx-auto ${
+    className={`${label ? 'w-auto px-2 gap-1.5' : 'w-10'} h-10 flex items-center justify-center rounded-xl transition-all mx-auto ${
       active ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 shadow-sm ring-1 ring-blue-300 dark:ring-blue-700'
       : danger ? 'hover:bg-red-50 dark:hover:bg-red-900/30 text-red-500'
       : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400'
     } ${disabled ? 'opacity-30 cursor-not-allowed' : ''}`}>
     {icon}
+    {label && <span className="text-[10px] font-medium truncate">{label}</span>}
   </button>
 );
 
@@ -173,10 +226,9 @@ const SizeBtn = ({ onClick, disabled, icon }) => (
   </button>
 );
 
-/* ═══════════════════════════════════════════════════
-   SVG ICONS — Colored & Recognizable like MS Paint
-   ═══════════════════════════════════════════════════ */
-
+/* ═══════════════════════════
+   SVG ICONS
+   ═══════════════════════════ */
 function PencilColorIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 64 64">
@@ -235,7 +287,6 @@ function EraserBlockIcon() {
   );
 }
 
-/* ── Shape SVGs ── */
 const Sv = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' };
 function LineIcon() { return <svg {...Sv}><line x1="5" y1="19" x2="19" y2="5" /></svg>; }
 function ArrowIcon() { return <svg {...Sv}><line x1="5" y1="19" x2="19" y2="5" /><polyline points="12 5 19 5 19 12" /></svg>; }

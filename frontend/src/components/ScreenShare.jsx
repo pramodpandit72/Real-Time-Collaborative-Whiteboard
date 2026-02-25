@@ -1,122 +1,118 @@
-import { useState, useRef, useEffect } from 'react';
-import { X, Monitor, MonitorOff } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { MonitorOff, Maximize2, Minimize2, Move } from 'lucide-react';
 
 const ScreenShare = ({ roomId, onClose }) => {
   const [stream, setStream] = useState(null);
   const [error, setError] = useState('');
-  const [status, setStatus] = useState('starting'); // starting, active, error
+  const [status, setStatus] = useState('starting');
+  const [minimized, setMinimized] = useState(false);
+  const [position, setPosition] = useState({ x: 16, y: 16 });
   const videoRef = useRef(null);
+  const containerRef = useRef(null);
+  const dragging = useRef(false);
 
   useEffect(() => {
     startScreenShare();
-    
-    return () => {
-      stopScreenShare();
-    };
+    return () => stopScreenShare();
   }, []);
 
   const startScreenShare = async () => {
     try {
       setStatus('starting');
       const mediaStream = await navigator.mediaDevices.getDisplayMedia({
-        video: {
-          cursor: 'always',
-          displaySurface: 'monitor'
-        },
+        video: { cursor: 'always', displaySurface: 'monitor' },
         audio: false
       });
-
       setStream(mediaStream);
       setStatus('active');
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-      }
-
-      // Handle stream end (user stops sharing via browser UI)
-      mediaStream.getVideoTracks()[0].onended = () => {
-        stopScreenShare();
-        onClose();
-      };
-
+      if (videoRef.current) videoRef.current.srcObject = mediaStream;
+      mediaStream.getVideoTracks()[0].onended = () => { stopScreenShare(); onClose(); };
     } catch (err) {
-      console.error('Error starting screen share:', err);
-      if (err.name === 'NotAllowedError') {
-        setError('Screen sharing was cancelled');
-      } else {
-        setError('Failed to start screen sharing');
-      }
+      setError(err.name === 'NotAllowedError' ? 'Screen sharing was cancelled' : 'Failed to start screen sharing');
       setStatus('error');
-      // Auto close after brief delay so user sees the message
       setTimeout(() => onClose(), 1500);
     }
   };
 
   const stopScreenShare = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
+    if (stream) { stream.getTracks().forEach(t => t.stop()); setStream(null); }
     setStatus('stopped');
   };
 
+  // ─── Drag handler ───
+  const onDragStart = useCallback((e) => {
+    e.preventDefault();
+    dragging.current = true;
+    const startX = e.clientX || e.touches?.[0]?.clientX;
+    const startY = e.clientY || e.touches?.[0]?.clientY;
+    const startPos = { ...position };
+
+    const onMove = (ev) => {
+      const x = ev.clientX || ev.touches?.[0]?.clientX;
+      const y = ev.clientY || ev.touches?.[0]?.clientY;
+      setPosition({
+        x: Math.max(0, startPos.x + (x - startX)),
+        y: Math.max(0, startPos.y + (y - startY))
+      });
+    };
+    const onUp = () => {
+      dragging.current = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove);
+    document.addEventListener('touchend', onUp);
+  }, [position]);
+
   if (status === 'error') {
     return (
-      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-8 max-w-sm mx-4 text-center shadow-2xl">
-          <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <MonitorOff className="w-8 h-8 text-red-500" />
-          </div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-            Screen Share Failed
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            {error || 'Unable to start screen sharing. Please try again.'}
-          </p>
-        </div>
+      <div className="fixed bottom-4 right-4 z-40 bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-2xl border border-gray-200 dark:border-gray-700 max-w-xs text-center">
+        <MonitorOff className="w-6 h-6 text-red-500 mx-auto mb-2" />
+        <p className="text-sm text-gray-600 dark:text-gray-400">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="relative w-full max-w-6xl mx-4">
-        {/* Controls */}
-        <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-          <button
-            onClick={() => {
-              stopScreenShare();
-              onClose();
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 rounded-xl text-white text-sm font-medium transition shadow-lg"
-          >
-            <MonitorOff className="w-4 h-4" />
-            Stop Sharing
+    <div ref={containerRef}
+      className="fixed z-40 transition-shadow"
+      style={{ left: position.x, top: position.y, ...(minimized ? { width: 200 } : {}) }}>
+      
+      {/* Header bar */}
+      <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-red-500 text-white rounded-t-xl cursor-move select-none"
+        onMouseDown={onDragStart} onTouchStart={onDragStart}>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+          <span className="text-xs font-medium">Screen Share</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setMinimized(!minimized)}
+            className="p-0.5 hover:bg-red-600 rounded transition" title={minimized ? 'Expand' : 'Minimize'}>
+            {minimized ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
+          </button>
+          <button onClick={() => { stopScreenShare(); onClose(); }}
+            className="p-0.5 hover:bg-red-600 rounded transition" title="Stop Sharing">
+            <MonitorOff className="w-3.5 h-3.5" />
           </button>
         </div>
-
-        {/* Status badge */}
-        <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-4 py-2 bg-red-500/90 backdrop-blur text-white rounded-xl text-sm font-medium shadow-lg">
-          <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-          Screen sharing active
-        </div>
-
-        {/* Video Preview */}
-        <div className="bg-gray-900 rounded-2xl overflow-hidden shadow-2xl border border-gray-700/50">
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-auto max-h-[80vh] object-contain"
-          />
-        </div>
-
-        {/* Instructions */}
-        <p className="text-center text-white/60 text-sm mt-4">
-          Your screen is being shared with all participants. Click "Stop Sharing" or use browser controls to end.
-        </p>
       </div>
+
+      {/* Video */}
+      {!minimized && (
+        <div className="bg-gray-900 rounded-b-xl overflow-hidden shadow-2xl border border-gray-700/50" style={{ width: 360 }}>
+          <video ref={videoRef} autoPlay playsInline muted className="w-full h-auto" />
+        </div>
+      )}
+
+      {minimized && (
+        <div className="bg-gray-900 rounded-b-xl px-3 py-2 text-white/60 text-xs border border-gray-700/50">
+          Sharing... (click expand)
+        </div>
+      )}
     </div>
   );
 };
