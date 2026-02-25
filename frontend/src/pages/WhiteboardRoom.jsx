@@ -9,7 +9,7 @@ import Toolbar from '../components/Toolbar';
 import ChatPanel from '../components/ChatPanel';
 import ParticipantsPanel from '../components/ParticipantsPanel';
 import ScreenShare from '../components/ScreenShare';
-import CameraPanel, { RemoteCameraFeed } from '../components/CameraPanel';
+import VideoCall from '../components/CameraPanel';
 import { 
   ArrowLeft, Users, MessageCircle, Settings, Copy, Check,
   Loader2, Moon, Sun, X, Monitor, MonitorOff, Download, Pen,
@@ -644,15 +644,6 @@ const WhiteboardRoom = () => {
             </div>
           )}
 
-          {/* Remote Camera Feeds */}
-          <RemoteCameraFeed feeds={remoteCameras} />
-
-          {/* Local Camera Panel */}
-          {showCamera && (
-            <div className="absolute bottom-4 left-4 z-30">
-              <CameraPanel roomId={roomId} onClose={() => setShowCamera(false)} />
-            </div>
-          )}
         </div>
 
         {/* Side Panels */}
@@ -685,6 +676,15 @@ const WhiteboardRoom = () => {
           />
         )}
       </div>
+
+      {/* Video Call Bar — Google Meet style */}
+      {showCamera && (
+        <VideoCall
+          roomId={roomId}
+          remoteCameras={remoteCameras}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
 
       {/* Screen Share — floating PiP, no longer blocks canvas */}
       {showScreenShare && (

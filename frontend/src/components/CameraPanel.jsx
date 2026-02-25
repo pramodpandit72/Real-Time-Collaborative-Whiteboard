@@ -1,78 +1,94 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Video, VideoOff, Mic, MicOff, Maximize2, Minimize2 } from 'lucide-react';
+import {
+  Video, VideoOff, Mic, MicOff, PhoneOff, ChevronUp, ChevronDown,
+  Maximize2, Minimize2, Volume2, VolumeX
+} from 'lucide-react';
 import { useSocket } from '../context/SocketContext';
+import { useAuth } from '../context/AuthContext';
 
-const CameraPanel = ({ roomId, onClose }) => {
+const VideoCall = ({ roomId, remoteCameras, onClose }) => {
   const [stream, setStream] = useState(null);
-  const [isOn, setIsOn] = useState(false);
-  const [isMuted, setIsMuted] = useState(true);
-  const [error, setError] = useState('');
+  const [cameraOn, setCameraOn] = useState(false);
+  const [micOn, setMicOn] = useState(false);
+  const [expanded, setExpanded] = useState(true);
+  const [selfFrame, setSelfFrame] = useState(null);
   const videoRef = useRef(null);
   const frameInterval = useRef(null);
   const { socket } = useSocket();
+  const { user } = useAuth();
 
-  // Start camera
-  const startCamera = async () => {
+  // ── Start Camera ──
+  const startCamera = useCallback(async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 320, height: 240, frameRate: 10 },
+        video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
         audio: true
       });
       setStream(mediaStream);
-      setIsOn(true);
-      setError('');
-
-      if (videoRef.current) videoRef.current.srcObject = mediaStream;
+      setCameraOn(true);
 
       // Mute audio by default
-      mediaStream.getAudioTracks().forEach(t => t.enabled = false);
+      mediaStream.getAudioTracks().forEach(t => { t.enabled = false; });
 
-      // Start streaming frames
+      // Attach to video element using a callback — fixes the self-view bug
+      requestAnimationFrame(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+          videoRef.current.play().catch(() => {});
+        }
+      });
+
       startFrameCapture(mediaStream);
-
-      // Notify others
       socket?.emit('camera-started', roomId);
     } catch (err) {
-      setError(err.name === 'NotAllowedError' ? 'Camera permission denied' : 'Camera not available');
+      console.error('Camera error:', err);
     }
-  };
+  }, [roomId, socket]);
 
-  const stopCamera = () => {
+  // ── Stop Camera ──
+  const stopCamera = useCallback(() => {
     if (stream) {
       stream.getTracks().forEach(t => t.stop());
       setStream(null);
     }
     stopFrameCapture();
-    setIsOn(false);
+    setCameraOn(false);
+    setMicOn(false);
+    setSelfFrame(null);
+    if (videoRef.current) videoRef.current.srcObject = null;
     socket?.emit('camera-stopped', roomId);
-  };
+  }, [stream, roomId, socket]);
 
-  const toggleMute = () => {
+  // ── Toggle Mic ──
+  const toggleMic = useCallback(() => {
     if (stream) {
-      const enabled = !isMuted;
-      stream.getAudioTracks().forEach(t => t.enabled = !enabled);
-      setIsMuted(enabled);
+      const newState = !micOn;
+      stream.getAudioTracks().forEach(t => { t.enabled = newState; });
+      setMicOn(newState);
     }
-  };
+  }, [stream, micOn]);
 
-  // Stream video frames via socket
+  // ── Frame capture for remote users ──
   const startFrameCapture = (mediaStream) => {
-    const video = document.createElement('video');
-    video.srcObject = mediaStream;
-    video.play();
+    const vid = document.createElement('video');
+    vid.srcObject = mediaStream;
+    vid.muted = true;
+    vid.playsInline = true;
+    vid.play().catch(() => {});
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
     frameInterval.current = setInterval(() => {
-      if (video.readyState >= 2 && socket?.connected) {
-        canvas.width = 160;
-        canvas.height = 120;
-        ctx.drawImage(video, 0, 0, 160, 120);
-        const frame = canvas.toDataURL('image/jpeg', 0.4);
+      if (vid.readyState >= 2 && socket?.connected) {
+        canvas.width = 200;
+        canvas.height = 150;
+        ctx.drawImage(vid, 0, 0, 200, 150);
+        const frame = canvas.toDataURL('image/jpeg', 0.45);
         socket.emit('camera-frame', { roomId, frame });
+        setSelfFrame(frame); // Also store self preview as fallback
       }
-    }, 333); // ~3 FPS
+    }, 400); // ~2.5 FPS
   };
 
   const stopFrameCapture = () => {
@@ -82,91 +98,195 @@ const CameraPanel = ({ roomId, onClose }) => {
     }
   };
 
+  // Cleanup on unmount
   useEffect(() => {
-    return () => { stopCamera(); };
+    return () => {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      stopFrameCapture();
+    };
   }, []);
 
+  // Sync video ref when stream changes
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.play().catch(() => {});
+    }
+  }, [stream, cameraOn]);
+
+  const remoteEntries = Object.entries(remoteCameras || {});
+  const totalParticipants = (cameraOn ? 1 : 0) + remoteEntries.length;
+
   return (
-    <div className="flex flex-col">
-      {/* Local camera preview */}
-      <div className="relative bg-gray-900 rounded-lg overflow-hidden" style={{ width: 200, height: 150 }}>
-        {isOn ? (
-          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <VideoOff className="w-8 h-8 text-gray-500" />
-          </div>
-        )}
+    <div className="bg-[#1a1a2e] border-t border-gray-700/50 flex flex-col transition-all duration-300"
+      style={{ height: expanded ? (totalParticipants > 0 ? 220 : 180) : 48 }}>
 
-        {error && (
-          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-            <p className="text-red-400 text-xs text-center px-2">{error}</p>
+      {/* ── Header Bar ── */}
+      <div className="flex items-center justify-between px-4 py-2 bg-[#16162a] border-b border-gray-700/30">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <div className={`w-2 h-2 rounded-full ${cameraOn ? 'bg-green-400 animate-pulse' : 'bg-gray-600'}`} />
+            <span className="text-[11px] font-semibold text-white/80 tracking-wide uppercase">
+              Video Call {totalParticipants > 0 && `· ${totalParticipants}`}
+            </span>
           </div>
-        )}
+        </div>
 
-        {/* Label */}
-        <div className="absolute top-1 left-1.5 text-[9px] text-white/70 bg-black/40 px-1.5 py-0.5 rounded">
-          You
+        <div className="flex items-center gap-1.5">
+          {/* Camera Toggle */}
+          <ControlButton
+            active={cameraOn}
+            activeColor="bg-blue-600 hover:bg-blue-700"
+            inactiveColor="bg-gray-700 hover:bg-gray-600"
+            onClick={cameraOn ? stopCamera : startCamera}
+            title={cameraOn ? 'Turn Off Camera' : 'Turn On Camera'}>
+            {cameraOn ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
+          </ControlButton>
+
+          {/* Mic Toggle */}
+          <ControlButton
+            active={micOn}
+            activeColor="bg-blue-600 hover:bg-blue-700"
+            inactiveColor="bg-gray-700 hover:bg-gray-600"
+            onClick={toggleMic}
+            disabled={!cameraOn}
+            title={micOn ? 'Mute' : 'Unmute'}>
+            {micOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+          </ControlButton>
+
+          <div className="w-px h-5 bg-gray-700 mx-1" />
+
+          {/* Expand / Collapse */}
+          <ControlButton
+            inactiveColor="bg-gray-700/60 hover:bg-gray-600"
+            onClick={() => setExpanded(!expanded)}
+            title={expanded ? 'Collapse' : 'Expand'}>
+            {expanded ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+          </ControlButton>
+
+          {/* End Call */}
+          <ControlButton
+            inactiveColor="bg-red-600 hover:bg-red-700"
+            onClick={() => { stopCamera(); onClose(); }}
+            title="Leave Call">
+            <PhoneOff className="w-4 h-4" />
+          </ControlButton>
         </div>
       </div>
 
-      {/* Controls */}
-      <div className="flex items-center justify-center gap-2 mt-1.5">
-        <button onClick={isOn ? stopCamera : startCamera}
-          className={`p-1.5 rounded-lg transition ${isOn ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-green-500 text-white hover:bg-green-600'}`}
-          title={isOn ? 'Turn Off Camera' : 'Turn On Camera'}>
-          {isOn ? <VideoOff className="w-4 h-4" /> : <Video className="w-4 h-4" />}
-        </button>
-        
-        <button onClick={toggleMute} disabled={!isOn}
-          className={`p-1.5 rounded-lg transition ${!isOn ? 'bg-gray-300 text-gray-500' : isMuted ? 'bg-gray-600 text-white hover:bg-gray-700' : 'bg-blue-500 text-white hover:bg-blue-600'}`}
-          title={isMuted ? 'Unmute' : 'Mute'}>
-          {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-        </button>
+      {/* ── Video Grid ── */}
+      {expanded && (
+        <div className="flex-1 p-3 overflow-x-auto">
+          <div className="flex gap-3 h-full items-center">
+            {/* Self View */}
+            {cameraOn && (
+              <VideoTile
+                label={`${user?.username || 'You'} (You)`}
+                isSelf
+                micOn={micOn}
+                cameraOn={cameraOn}>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover mirror"
+                  style={{ transform: 'scaleX(-1)' }}
+                />
+              </VideoTile>
+            )}
 
-        <button onClick={onClose}
-          className="p-1.5 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-500 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
-          title="Close">
-          <VideoOff className="w-4 h-4" />
-        </button>
-      </div>
-    </div>
-  );
-};
+            {/* Self placeholder when camera is off but call is open */}
+            {!cameraOn && (
+              <VideoTile label={`${user?.username || 'You'} (You)`} isSelf micOn={false} cameraOn={false}>
+                <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-xl font-bold mb-1">
+                    {(user?.username || 'U')[0].toUpperCase()}
+                  </div>
+                  <span className="text-[10px] text-gray-400 mt-1">Camera off</span>
+                </div>
+              </VideoTile>
+            )}
 
-// Remote camera feed bubble for other users
-export const RemoteCameraFeed = ({ feeds }) => {
-  const [expanded, setExpanded] = useState({});
+            {/* Remote Feeds */}
+            {remoteEntries.map(([userId, { username, frame }]) => (
+              <VideoTile key={userId} label={username || 'User'} micOn={true} cameraOn={!!frame}>
+                {frame ? (
+                  <img src={frame} alt={username} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-xl font-bold mb-1">
+                      {(username || 'U')[0].toUpperCase()}
+                    </div>
+                    <span className="text-[10px] text-gray-400 mt-1">Connecting...</span>
+                  </div>
+                )}
+              </VideoTile>
+            ))}
 
-  if (!feeds || Object.keys(feeds).length === 0) return null;
-
-  return (
-    <div className="absolute top-4 right-4 z-30 flex flex-col gap-2">
-      {Object.entries(feeds).map(([userId, { username, frame }]) => {
-        const isExpanded = expanded[userId];
-        return (
-          <div key={userId}
-            className="bg-gray-900 rounded-xl overflow-hidden shadow-2xl border border-gray-700/50 transition-all"
-            style={{ width: isExpanded ? 320 : 160 }}>
-            <div className="flex items-center justify-between px-2 py-1 bg-gray-800">
-              <span className="text-[10px] text-white/70 truncate">{username}</span>
-              <button onClick={() => setExpanded(p => ({ ...p, [userId]: !p[userId] }))}
-                className="text-white/50 hover:text-white">
-                {isExpanded ? <Minimize2 className="w-3 h-3" /> : <Maximize2 className="w-3 h-3" />}
-              </button>
-            </div>
-            {frame ? (
-              <img src={frame} alt={`${username}'s camera`} className="w-full h-auto" />
-            ) : (
-              <div className="w-full aspect-video bg-gray-900 flex items-center justify-center">
-                <VideoOff className="w-5 h-5 text-gray-600" />
+            {/* Empty state */}
+            {totalParticipants === 0 && !cameraOn && (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <Video className="w-8 h-8 text-gray-600 mx-auto mb-2" />
+                  <p className="text-gray-500 text-sm">Turn on your camera to start</p>
+                  <p className="text-gray-600 text-xs mt-0.5">Other participants will appear here</p>
+                </div>
               </div>
             )}
           </div>
-        );
-      })}
+        </div>
+      )}
     </div>
   );
 };
 
-export default CameraPanel;
+/* ── Video Tile ── */
+const VideoTile = ({ children, label, isSelf, micOn, cameraOn }) => (
+  <div className="relative flex-shrink-0 rounded-xl overflow-hidden bg-gray-900 border border-gray-700/50 shadow-lg group"
+    style={{ width: 200, height: 150 }}>
+    {children}
+
+    {/* Bottom gradient overlay */}
+    <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/70 to-transparent" />
+
+    {/* Name badge */}
+    <div className="absolute bottom-1.5 left-2 flex items-center gap-1.5">
+      {isSelf && <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />}
+      <span className="text-[10px] text-white font-medium truncate max-w-[120px] drop-shadow">{label}</span>
+    </div>
+
+    {/* Mic indicator */}
+    <div className="absolute bottom-1.5 right-2">
+      {micOn ? (
+        <Mic className="w-3 h-3 text-white/70" />
+      ) : (
+        <div className="bg-red-500/80 rounded-full p-0.5">
+          <MicOff className="w-2.5 h-2.5 text-white" />
+        </div>
+      )}
+    </div>
+
+    {/* Live ring for active camera */}
+    {cameraOn && (
+      <div className="absolute top-1.5 right-1.5">
+        <div className="w-2 h-2 rounded-full bg-green-400 ring-2 ring-green-400/30" />
+      </div>
+    )}
+  </div>
+);
+
+/* ── Control Button ── */
+const ControlButton = ({ children, onClick, disabled, title, active, activeColor, inactiveColor }) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    title={title}
+    className={`p-2 rounded-full text-white transition-all ${disabled ? 'opacity-40 cursor-not-allowed' : ''} ${
+      active ? (activeColor || 'bg-blue-600') : (inactiveColor || 'bg-gray-700')
+    }`}>
+    {children}
+  </button>
+);
+
+export default VideoCall;
