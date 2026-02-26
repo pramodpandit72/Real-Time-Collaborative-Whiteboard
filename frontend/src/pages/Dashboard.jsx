@@ -134,52 +134,82 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Navbar */}
-      <nav className="sticky top-0 z-40 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link to="/" className="flex items-center gap-3 group">
-              <div className="relative">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                  <Pen className="w-4 h-4 text-white" />
+      <nav className="sticky top-0 z-40">
+        {/* Gradient accent line */}
+        <div className="h-[2px] bg-gradient-to-r from-blue-500 via-violet-500 to-purple-500" />
+        <div className="bg-white/70 dark:bg-gray-900/70 backdrop-blur-2xl border-b border-gray-200/40 dark:border-gray-800/40 shadow-sm shadow-gray-200/20 dark:shadow-black/10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <Link to="/" className="flex items-center gap-3 group">
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 via-violet-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
+                    <Pen className="w-4.5 h-4.5 text-white transition-transform duration-300 group-hover:scale-110" />
+                  </div>
+                  <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-white dark:border-gray-900 animate-pulse" />
                 </div>
-                <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-white dark:border-gray-900" />
+                <div className="flex flex-col">
+                  <span className="text-lg font-extrabold bg-gradient-to-r from-blue-600 via-violet-600 to-purple-600 bg-clip-text text-transparent tracking-tight">
+                    CollabBoard
+                  </span>
+                  <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 -mt-0.5 tracking-wider uppercase">
+                    Dashboard
+                  </span>
+                </div>
+              </Link>
+
+              <div className="flex items-center gap-2">
+                {/* Theme Toggle */}
+                <button
+                  onClick={toggleTheme}
+                  className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/80 text-gray-500 dark:text-gray-400 transition-all duration-200 hover:scale-105 active:scale-95"
+                  title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                >
+                  <div className="relative w-5 h-5">
+                    {isDark ? (
+                      <Sun className="w-5 h-5 transition-transform duration-300 hover:rotate-45" />
+                    ) : (
+                      <Moon className="w-5 h-5 transition-transform duration-300 hover:-rotate-12" />
+                    )}
+                  </div>
+                </button>
+
+                <div className="w-px h-8 bg-gray-200/80 dark:bg-gray-700/60 mx-1" />
+
+                {/* User Profile */}
+                <div className="flex items-center gap-3 pl-1">
+                  <div className="relative group/avatar">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-violet-500 to-purple-500 p-[2px] shadow-md shadow-blue-500/10 transition-all duration-300 group-hover/avatar:shadow-blue-500/30 group-hover/avatar:scale-105">
+                      <div className="w-full h-full rounded-[10px] overflow-hidden bg-white dark:bg-gray-900">
+                        {user?.avatar ? (
+                          <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-violet-500">
+                            <span className="text-white font-bold text-sm">
+                              {user?.username?.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {/* Online indicator */}
+                    <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white dark:border-gray-900" />
+                  </div>
+
+                  <div className="hidden sm:block">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">{user?.username}</p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate max-w-[140px]">{user?.email}</p>
+                  </div>
+                </div>
+
+                {/* Logout */}
+                <button
+                  onClick={handleLogout}
+                  className="group p-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-all duration-200 hover:scale-105 active:scale-95"
+                  title="Logout"
+                >
+                  <LogOut className="w-5 h-5 transition-transform duration-200 group-hover:translate-x-0.5" />
+                </button>
               </div>
-              <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
-                CollabBoard
-              </span>
-            </Link>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={toggleTheme}
-                className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-all"
-              >
-                {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
-
-              <div className="flex items-center gap-3 pl-3 border-l border-gray-200 dark:border-gray-700">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-violet-500 flex items-center justify-center overflow-hidden">
-                  {user?.avatar ? (
-                    <img src={user.avatar} alt={user.username} className="w-9 h-9 rounded-xl object-cover" />
-                  ) : (
-                    <span className="text-white font-semibold text-sm">
-                      {user?.username?.charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                </div>
-                <div className="hidden sm:block">
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">{user?.username}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{user?.email}</p>
-                </div>
-              </div>
-
-              <button
-                onClick={handleLogout}
-                className="p-2.5 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-all"
-                title="Logout"
-              >
-                <LogOut className="w-5 h-5" />
-              </button>
             </div>
           </div>
         </div>

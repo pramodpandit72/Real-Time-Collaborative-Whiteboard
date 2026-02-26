@@ -77,64 +77,88 @@ const LandingPage = () => {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white overflow-hidden">
       {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-800/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <Link to="/" className="flex items-center gap-3 group">
-              <div className="relative">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center shadow-lg shadow-blue-500/25 group-hover:shadow-blue-500/40 transition-shadow">
-                  <Pen className="w-5 h-5 text-white" />
+      <nav className="fixed top-0 left-0 right-0 z-50">
+        {/* Gradient accent line */}
+        <div className="h-[2px] bg-gradient-to-r from-blue-500 via-violet-500 to-purple-500" />
+        <div className="bg-white/70 dark:bg-gray-950/70 backdrop-blur-2xl border-b border-gray-200/40 dark:border-gray-800/40 shadow-sm shadow-gray-200/20 dark:shadow-black/10">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <Link to="/" className="flex items-center gap-3 group">
+                <div className="relative">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 via-violet-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/25 group-hover:shadow-blue-500/40 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
+                    <Pen className="w-5 h-5 text-white transition-transform duration-300 group-hover:scale-110" />
+                  </div>
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white dark:border-gray-950 animate-pulse" />
                 </div>
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white dark:border-gray-950 animate-pulse" />
+                <div className="flex flex-col">
+                  <span className="text-xl font-extrabold bg-gradient-to-r from-blue-600 via-violet-600 to-purple-600 bg-clip-text text-transparent tracking-tight">
+                    CollabBoard
+                  </span>
+                  <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 -mt-0.5 tracking-wider uppercase">
+                    Real-time Whiteboard
+                  </span>
+                </div>
+              </Link>
+
+              <div className="hidden md:flex items-center gap-1">
+                {[
+                  { href: '#features', label: 'Features' },
+                  { href: '#how-it-works', label: 'How It Works' },
+                ].map((link) => (
+                  <a
+                    key={link.href}
+                    href={link.href}
+                    className="relative px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200 group"
+                  >
+                    {link.label}
+                    <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-gradient-to-r from-blue-600 to-violet-600 rounded-full transition-all duration-300 group-hover:w-3/4" />
+                  </a>
+                ))}
               </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
-                CollabBoard
-              </span>
-            </Link>
 
-            <div className="hidden md:flex items-center gap-8">
-              <a href="#features" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
-                Features
-              </a>
-              <a href="#how-it-works" className="text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
-                How It Works
-              </a>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={toggleTheme}
-                className="p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-all"
-                aria-label="Toggle theme"
-              >
-                {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
-
-              {isAuthenticated ? (
-                <Link
-                  to="/dashboard"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all"
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={toggleTheme}
+                  className="relative p-2.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800/80 text-gray-500 dark:text-gray-400 transition-all duration-200 hover:scale-105 active:scale-95"
+                  aria-label="Toggle theme"
                 >
-                  Dashboard
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
-              ) : (
-                <>
+                  <div className="relative w-5 h-5">
+                    {isDark ? (
+                      <Sun className="w-5 h-5 transition-transform duration-300 hover:rotate-45" />
+                    ) : (
+                      <Moon className="w-5 h-5 transition-transform duration-300 hover:-rotate-12" />
+                    )}
+                  </div>
+                </button>
+
+                <div className="w-px h-6 bg-gray-200 dark:bg-gray-700/60 mx-1 hidden sm:block" />
+
+                {isAuthenticated ? (
                   <Link
-                    to="/login"
-                    className="px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
+                    to="/dashboard"
+                    className="group inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] active:scale-95"
                   >
-                    Sign In
+                    Dashboard
+                    <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
                   </Link>
-                  <Link
-                    to="/register"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all"
-                  >
-                    Get Started
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-                </>
-              )}
+                ) : (
+                  <>
+                    <Link
+                      to="/login"
+                      className="px-4 py-2.5 text-sm font-semibold text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-all duration-200 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-xl"
+                    >
+                      Sign In
+                    </Link>
+                    <Link
+                      to="/register"
+                      className="group inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-500 hover:to-violet-500 text-white text-sm font-semibold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] active:scale-95"
+                    >
+                      Get Started
+                      <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+                    </Link>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </div>

@@ -374,6 +374,71 @@ export default (io) => {
       });
     });
 
+    // WebRTC audio signaling
+    socket.on('audio-offer', (data) => {
+      const { roomId, offer, targetUserId } = data;
+      // Send offer to specific user or broadcast to room
+      if (targetUserId) {
+        // Find the socket for the target user
+        const targetSocket = [...io.sockets.sockets.values()].find(
+          s => s.user._id.toString() === targetUserId
+        );
+        if (targetSocket) {
+          targetSocket.emit('audio-offer', {
+            offer,
+            fromUserId: socket.user._id.toString(),
+            fromUsername: socket.user.username
+          });
+        }
+      } else {
+        socket.to(roomId).emit('audio-offer', {
+          offer,
+          fromUserId: socket.user._id.toString(),
+          fromUsername: socket.user.username
+        });
+      }
+    });
+
+    socket.on('audio-answer', (data) => {
+      const { roomId, answer, targetUserId } = data;
+      if (targetUserId) {
+        const targetSocket = [...io.sockets.sockets.values()].find(
+          s => s.user._id.toString() === targetUserId
+        );
+        if (targetSocket) {
+          targetSocket.emit('audio-answer', {
+            answer,
+            fromUserId: socket.user._id.toString()
+          });
+        }
+      } else {
+        socket.to(roomId).emit('audio-answer', {
+          answer,
+          fromUserId: socket.user._id.toString()
+        });
+      }
+    });
+
+    socket.on('audio-ice-candidate', (data) => {
+      const { roomId, candidate, targetUserId } = data;
+      if (targetUserId) {
+        const targetSocket = [...io.sockets.sockets.values()].find(
+          s => s.user._id.toString() === targetUserId
+        );
+        if (targetSocket) {
+          targetSocket.emit('audio-ice-candidate', {
+            candidate,
+            fromUserId: socket.user._id.toString()
+          });
+        }
+      } else {
+        socket.to(roomId).emit('audio-ice-candidate', {
+          candidate,
+          fromUserId: socket.user._id.toString()
+        });
+      }
+    });
+
     // File sharing
     socket.on('file-share', async (data) => {
       const { roomId, fileData } = data;

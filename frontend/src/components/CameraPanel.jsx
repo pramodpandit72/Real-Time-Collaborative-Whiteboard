@@ -6,6 +6,13 @@ import {
 import { useSocket } from '../context/SocketContext';
 import { useAuth } from '../context/AuthContext';
 
+const ICE_SERVERS = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ]
+};
+
 const VideoCall = ({ roomId, remoteCameras, onClose }) => {
   const [stream, setStream] = useState(null);
   const [cameraOn, setCameraOn] = useState(false);
@@ -17,6 +24,11 @@ const VideoCall = ({ roomId, remoteCameras, onClose }) => {
   const { socket } = useSocket();
   const { user } = useAuth();
 
+  // WebRTC audio peer connections: Map<userId, RTCPeerConnection>
+  const peerConnections = useRef(new Map());
+  const audioElements = useRef(new Map());
+  const localStreamRef = useRef(null);
+
   // ── Start Camera ──
   const startCamera = useCallback(async () => {
     try {
@@ -26,11 +38,12 @@ const VideoCall = ({ roomId, remoteCameras, onClose }) => {
       });
       setStream(mediaStream);
       setCameraOn(true);
+      localStreamRef.current = mediaStream;
 
       // Mute audio by default
       mediaStream.getAudioTracks().forEach(t => { t.enabled = false; });
 
-      // Attach to video element using a callback — fixes the self-view bug
+      // Attach to video element
       requestAnimationFrame(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream;
@@ -50,8 +63,10 @@ const VideoCall = ({ roomId, remoteCameras, onClose }) => {
     if (stream) {
       stream.getTracks().forEach(t => t.stop());
       setStream(null);
+      localStreamRef.current = null;
     }
     stopFrameCapture();
+    closeAllPeerConnections();
     setCameraOn(false);
     setMicOn(false);
     setSelfFrame(null);
@@ -61,12 +76,234 @@ const VideoCall = ({ roomId, remoteCameras, onClose }) => {
 
   // ── Toggle Mic ──
   const toggleMic = useCallback(() => {
-    if (stream) {
-      const newState = !micOn;
-      stream.getAudioTracks().forEach(t => { t.enabled = newState; });
-      setMicOn(newState);
+    if (!stream) return;
+    const newState = !micOn;
+    stream.getAudioTracks().forEach(t => { t.enabled = newState; });
+    setMicOn(newState);
+
+    if (newState) {
+      // Mic ON: initiate WebRTC audio connections to all remote users
+      const remoteUserIds = Object.keys(remoteCameras || {});
+      remoteUserIds.forEach(remoteUserId => {
+        if (!peerConnections.current.has(remoteUserId)) {
+          createAudioOffer(remoteUserId);
+        }
+      });
     }
-  }, [stream, micOn]);
+  }, [stream, micOn, remoteCameras]);
+
+  // ── Create WebRTC audio offer to a remote peer ──
+  const createAudioOffer = useCallback(async (targetUserId) => {
+    if (!localStreamRef.current || !socket) return;
+    
+    try {
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      peerConnections.current.set(targetUserId, pc);
+
+      // Add local audio track
+      const audioTracks = localStreamRef.current.getAudioTracks();
+      audioTracks.forEach(track => {
+        pc.addTrack(track, localStreamRef.current);
+      });
+
+      // Handle ICE candidates
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('audio-ice-candidate', {
+            roomId,
+            candidate: event.candidate,
+            targetUserId
+          });
+        }
+      };
+
+      // Handle remote audio stream
+      pc.ontrack = (event) => {
+        const [remoteStream] = event.streams;
+        if (remoteStream) {
+          playRemoteAudio(targetUserId, remoteStream);
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          closePeerConnection(targetUserId);
+        }
+      };
+
+      // Create and send offer
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      
+      socket.emit('audio-offer', {
+        roomId,
+        offer: pc.localDescription,
+        targetUserId
+      });
+    } catch (err) {
+      console.error('Error creating audio offer:', err);
+      closePeerConnection(targetUserId);
+    }
+  }, [roomId, socket]);
+
+  // ── Handle incoming audio offer ──
+  const handleAudioOffer = useCallback(async (data) => {
+    const { offer, fromUserId } = data;
+    if (!localStreamRef.current || !socket) return;
+
+    try {
+      // Close existing connection if any
+      closePeerConnection(fromUserId);
+
+      const pc = new RTCPeerConnection(ICE_SERVERS);
+      peerConnections.current.set(fromUserId, pc);
+
+      // Add local audio track
+      const audioTracks = localStreamRef.current.getAudioTracks();
+      audioTracks.forEach(track => {
+        pc.addTrack(track, localStreamRef.current);
+      });
+
+      // Handle ICE candidates
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          socket.emit('audio-ice-candidate', {
+            roomId,
+            candidate: event.candidate,
+            targetUserId: fromUserId
+          });
+        }
+      };
+
+      // Handle remote audio stream
+      pc.ontrack = (event) => {
+        const [remoteStream] = event.streams;
+        if (remoteStream) {
+          playRemoteAudio(fromUserId, remoteStream);
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+          closePeerConnection(fromUserId);
+        }
+      };
+
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      socket.emit('audio-answer', {
+        roomId,
+        answer: pc.localDescription,
+        targetUserId: fromUserId
+      });
+    } catch (err) {
+      console.error('Error handling audio offer:', err);
+      closePeerConnection(fromUserId);
+    }
+  }, [roomId, socket]);
+
+  // ── Handle incoming audio answer ──
+  const handleAudioAnswer = useCallback(async (data) => {
+    const { answer, fromUserId } = data;
+    const pc = peerConnections.current.get(fromUserId);
+    if (!pc) return;
+
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    } catch (err) {
+      console.error('Error handling audio answer:', err);
+    }
+  }, []);
+
+  // ── Handle incoming ICE candidate ──
+  const handleAudioIceCandidate = useCallback(async (data) => {
+    const { candidate, fromUserId } = data;
+    const pc = peerConnections.current.get(fromUserId);
+    if (!pc) return;
+
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (err) {
+      console.error('Error adding ICE candidate:', err);
+    }
+  }, []);
+
+  // ── Play remote audio stream ──
+  const playRemoteAudio = (userId, remoteStream) => {
+    // Remove existing audio element if any
+    const existing = audioElements.current.get(userId);
+    if (existing) {
+      existing.srcObject = null;
+      existing.remove();
+    }
+
+    const audio = document.createElement('audio');
+    audio.srcObject = remoteStream;
+    audio.autoplay = true;
+    audio.playsInline = true;
+    // Append to DOM (required by some browsers)
+    document.body.appendChild(audio);
+    audio.play().catch(err => console.error('Audio play error:', err));
+    audioElements.current.set(userId, audio);
+  };
+
+  // ── Close a single peer connection ──
+  const closePeerConnection = (userId) => {
+    const pc = peerConnections.current.get(userId);
+    if (pc) {
+      pc.close();
+      peerConnections.current.delete(userId);
+    }
+    const audio = audioElements.current.get(userId);
+    if (audio) {
+      audio.srcObject = null;
+      audio.remove();
+      audioElements.current.delete(userId);
+    }
+  };
+
+  // ── Close all peer connections ──
+  const closeAllPeerConnections = () => {
+    peerConnections.current.forEach((pc, userId) => {
+      pc.close();
+      const audio = audioElements.current.get(userId);
+      if (audio) {
+        audio.srcObject = null;
+        audio.remove();
+      }
+    });
+    peerConnections.current.clear();
+    audioElements.current.clear();
+  };
+
+  // ── Socket listeners for audio signaling ──
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('audio-offer', handleAudioOffer);
+    socket.on('audio-answer', handleAudioAnswer);
+    socket.on('audio-ice-candidate', handleAudioIceCandidate);
+
+    return () => {
+      socket.off('audio-offer', handleAudioOffer);
+      socket.off('audio-answer', handleAudioAnswer);
+      socket.off('audio-ice-candidate', handleAudioIceCandidate);
+    };
+  }, [socket, handleAudioOffer, handleAudioAnswer, handleAudioIceCandidate]);
+
+  // ── When new remote users appear and we have mic on, connect to them ──
+  useEffect(() => {
+    if (!micOn || !localStreamRef.current) return;
+
+    const remoteUserIds = Object.keys(remoteCameras || {});
+    remoteUserIds.forEach(remoteUserId => {
+      if (!peerConnections.current.has(remoteUserId)) {
+        createAudioOffer(remoteUserId);
+      }
+    });
+  }, [remoteCameras, micOn, createAudioOffer]);
 
   // ── Frame capture for remote users ──
   const startFrameCapture = (mediaStream) => {
@@ -86,9 +323,9 @@ const VideoCall = ({ roomId, remoteCameras, onClose }) => {
         ctx.drawImage(vid, 0, 0, 200, 150);
         const frame = canvas.toDataURL('image/jpeg', 0.45);
         socket.emit('camera-frame', { roomId, frame });
-        setSelfFrame(frame); // Also store self preview as fallback
+        setSelfFrame(frame);
       }
-    }, 400); // ~2.5 FPS
+    }, 400);
   };
 
   const stopFrameCapture = () => {
@@ -101,8 +338,11 @@ const VideoCall = ({ roomId, remoteCameras, onClose }) => {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(t => t.stop());
+      }
       stopFrameCapture();
+      closeAllPeerConnections();
     };
   }, []);
 
