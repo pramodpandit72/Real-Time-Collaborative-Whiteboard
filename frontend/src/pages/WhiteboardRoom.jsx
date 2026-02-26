@@ -10,10 +10,11 @@ import ChatPanel from '../components/ChatPanel';
 import ParticipantsPanel from '../components/ParticipantsPanel';
 import ScreenShare from '../components/ScreenShare';
 import VideoCall from '../components/CameraPanel';
+import StickyNoteOverlay from '../components/StickyNote';
 import { 
   ArrowLeft, Users, MessageCircle, Settings, Copy, Check,
   Loader2, Moon, Sun, X, Monitor, MonitorOff, Download, Pen,
-  Video, VideoOff, Maximize2, Minimize2
+  Video, VideoOff, Maximize2, Minimize2, Keyboard
 } from 'lucide-react';
 
 const WhiteboardRoom = () => {
@@ -61,6 +62,9 @@ const WhiteboardRoom = () => {
   const [showCamera, setShowCamera] = useState(false);
   const [remoteCameras, setRemoteCameras] = useState({});
   const [screenShareExpanded, setScreenShareExpanded] = useState(false);
+  const [stickyNotes, setStickyNotes] = useState([]);
+  const [gridMode, setGridMode] = useState('none');
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   const canvasRef = useRef(null);
 
@@ -339,6 +343,47 @@ const WhiteboardRoom = () => {
   const handleZoomOut = () => setZoom(z => Math.max(z - 0.1, 0.3));
   const handleZoomReset = () => setZoom(1);
 
+  // Add sticky note
+  const handleAddStickyNote = useCallback(() => {
+    const offset = (stickyNotes.length % 5) * 30;
+    setStickyNotes(prev => [...prev, {
+      id: Date.now().toString(),
+      text: '',
+      x: 120 + offset,
+      y: 80 + offset,
+      color: { name: 'Yellow', bg: '#FEF3C7', border: '#F59E0B', text: '#92400E' },
+      width: 180, height: 140, editing: true,
+    }]);
+  }, [stickyNotes.length]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handler = (e) => {
+      // Don't capture when user is typing in an input/textarea
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      if (e.key === '?') { setShowShortcuts(s => !s); return; }
+      if (e.key === 'Escape') { setShowShortcuts(false); return; }
+
+      if (ctrl && e.key === 'z') { e.preventDefault(); handleUndo(); return; }
+      if (ctrl && e.key === 'y') { e.preventDefault(); handleRedo(); return; }
+
+      const shortcuts = {
+        'p': 'pencil', 'e': 'eraser', 't': 'text', 'l': 'laser',
+        'm': 'marker', 'h': 'highlighter', 'r': 'rectangle',
+        'c': 'circle', 'a': 'arrow',
+      };
+      if (shortcuts[e.key.toLowerCase()]) { setTool(shortcuts[e.key.toLowerCase()]); return; }
+
+      if (e.key === '=' || e.key === '+') { e.preventDefault(); handleZoomIn(); }
+      if (e.key === '-') { e.preventDefault(); handleZoomOut(); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [handleUndo, handleRedo]);
+
   // Download as image
   const handleDownload = useCallback(() => {
     if (canvasRef.current) {
@@ -592,6 +637,9 @@ const WhiteboardRoom = () => {
           onZoomReset={handleZoomReset}
           sidebarWidth={sidebarWidth}
           onSidebarResize={setSidebarWidth}
+          gridMode={gridMode}
+          onGridModeChange={setGridMode}
+          onAddStickyNote={handleAddStickyNote}
         />
 
         {/* Canvas */}
@@ -609,7 +657,11 @@ const WhiteboardRoom = () => {
             addToHistory={addToHistory}
             canvasDark={canvasDark}
             zoom={zoom}
+            gridMode={gridMode}
           />
+
+          {/* Sticky Notes */}
+          <StickyNoteOverlay notes={stickyNotes} setNotes={setStickyNotes} />
 
           {/* Remote Screen Share Viewer */}
           {remoteScreenShare && (
@@ -692,6 +744,54 @@ const WhiteboardRoom = () => {
           roomId={roomId}
           onClose={handleStopScreenShare}
         />
+      )}
+
+      {/* Keyboard Shortcuts Modal */}
+      {showShortcuts && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center" onClick={() => setShowShortcuts(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full mx-4 border border-gray-200 dark:border-gray-700 animate-modal" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <Keyboard className="w-5 h-5 text-blue-500" />
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Keyboard Shortcuts</h2>
+              </div>
+              <button onClick={() => setShowShortcuts(false)} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            </div>
+            <div className="p-5 space-y-1.5 max-h-[60vh] overflow-y-auto">
+              {[
+                ['P', 'Pencil tool'],
+                ['M', 'Marker tool'],
+                ['H', 'Highlighter tool'],
+                ['E', 'Eraser tool'],
+                ['T', 'Text tool'],
+                ['L', 'Laser pointer'],
+                ['R', 'Rectangle'],
+                ['C', 'Circle'],
+                ['A', 'Arrow'],
+                ['Ctrl + Z', 'Undo'],
+                ['Ctrl + Y', 'Redo'],
+                ['+', 'Zoom in'],
+                ['−', 'Zoom out'],
+                ['?', 'Toggle shortcuts'],
+                ['Esc', 'Close modals'],
+              ].map(([key, desc]) => (
+                <div key={key} className="flex items-center justify-between py-1.5">
+                  <span className="text-sm text-gray-600 dark:text-gray-300">{desc}</span>
+                  <div className="flex gap-1">
+                    {key.split(' + ').map(k => (
+                      <span key={k} className="kbd">{k}</span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 text-center">
+              <p className="text-xs text-gray-400">Press <span className="kbd">?</span> anytime to toggle this panel</p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

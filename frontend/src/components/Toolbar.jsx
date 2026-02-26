@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Undo2, Redo2, Trash2, Download, Minus, Plus, Type, Sun, Moon, ZoomIn, ZoomOut, GripVertical } from 'lucide-react';
+import { Undo2, Redo2, Trash2, Download, Minus, Plus, Type, Sun, Moon, ZoomIn, ZoomOut, GripVertical, StickyNote, Grid3X3 } from 'lucide-react';
 
 const COLORS = [
   '#000000', '#ffffff', '#ef4444', '#f97316', '#eab308',
@@ -28,6 +28,12 @@ const SHAPES = [
   { id: 'heart', label: 'Heart', icon: <HeartIcon /> },
 ];
 
+const GRID_MODES = [
+  { id: 'none', label: 'No Grid' },
+  { id: 'dots', label: 'Dots' },
+  { id: 'lines', label: 'Lines' },
+];
+
 const Toolbar = ({
   tool, setTool, color, setColor,
   brushSize, setBrushSize,
@@ -36,7 +42,9 @@ const Toolbar = ({
   canUndo, canRedo, canClear, canDraw,
   canvasDark, onToggleCanvasDark,
   zoom, onZoomIn, onZoomOut, onZoomReset,
-  sidebarWidth, onSidebarResize
+  sidebarWidth, onSidebarResize,
+  gridMode, onGridModeChange,
+  onAddStickyNote,
 }) => {
   const [showShapes, setShowShapes] = useState(false);
   const isEraser = tool === 'eraser';
@@ -107,6 +115,45 @@ const Toolbar = ({
 
         <Divider />
 
+        {/* Laser + Sticky */}
+        <Label text="Tools" wide={isWide} />
+        <div className={`flex ${isWide ? 'flex-wrap justify-center gap-[2px] px-1' : 'flex-col items-center gap-[2px]'}`}>
+          <ToolBtn
+            icon={<LaserIcon />}
+            active={tool === 'laser'}
+            onClick={() => setTool('laser')}
+            disabled={!canDraw}
+            title="Laser Pointer"
+            label={isWide ? 'Laser' : undefined}
+          />
+          <ToolBtn
+            icon={<StickyNote className="w-[18px] h-[18px]" />}
+            onClick={onAddStickyNote}
+            disabled={!canDraw}
+            title="Sticky Note"
+            label={isWide ? 'Sticky' : undefined}
+          />
+        </div>
+
+        {/* Grid Toggle */}
+        <div className={`flex items-center ${isWide ? 'justify-center gap-1 px-1' : 'flex-col items-center gap-[2px]'} mt-1`}>
+          {GRID_MODES.map(g => (
+            <button key={g.id}
+              onClick={() => onGridModeChange?.(g.id)}
+              className={`px-2 py-1 rounded-lg text-[9px] font-semibold transition ${
+                gridMode === g.id
+                  ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 ring-1 ring-blue-300 dark:ring-blue-700'
+                  : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              title={g.label}
+            >
+              {isWide ? g.label : g.id === 'none' ? '—' : g.id === 'dots' ? '⋯' : '▦'}
+            </button>
+          ))}
+        </div>
+
+        <Divider />
+
         {/* Shapes */}
         <Label text="Shapes" wide={isWide} />
         <div className={`flex ${isWide ? 'flex-wrap justify-center gap-[2px] px-1' : 'flex-col items-center gap-[2px]'}`}>
@@ -143,7 +190,7 @@ const Toolbar = ({
 
         <Divider />
 
-        {/* Size — Separate for brush and eraser */}
+        {/* Size */}
         <Label text={isEraser ? 'Eraser Size' : 'Brush Size'} wide={isWide} />
         <div className="flex flex-col items-center gap-0 px-1">
           <SizeBtn icon={<Plus className="w-3.5 h-3.5" />}
@@ -229,6 +276,19 @@ const SizeBtn = ({ onClick, disabled, icon }) => (
 /* ═══════════════════════════
    SVG ICONS
    ═══════════════════════════ */
+
+function LaserIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3" fill="#ef4444" stroke="#ef4444" />
+      <line x1="12" y1="2" x2="12" y2="6" stroke="#ef4444" opacity="0.5" />
+      <line x1="12" y1="18" x2="12" y2="22" stroke="#ef4444" opacity="0.5" />
+      <line x1="2" y1="12" x2="6" y2="12" stroke="#ef4444" opacity="0.5" />
+      <line x1="18" y1="12" x2="22" y2="12" stroke="#ef4444" opacity="0.5" />
+    </svg>
+  );
+}
+
 function PencilColorIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 64 64">

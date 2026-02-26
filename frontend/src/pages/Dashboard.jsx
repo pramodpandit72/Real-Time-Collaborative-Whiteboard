@@ -6,8 +6,39 @@ import { roomService } from '../services/roomService';
 import {
   Plus, LogOut, Moon, Sun, Users, Calendar, Copy, Check,
   Trash2, ArrowRight, Loader2, Search, X, Pen, Lock,
-  LayoutGrid, Clock, Sparkles, ChevronRight
+  LayoutGrid, Clock, Sparkles, ChevronRight,
+  Lightbulb, Columns, RotateCcw, Kanban
 } from 'lucide-react';
+
+/* ═══════════════════════════════════════
+   QUICK-START TEMPLATES
+   ═══════════════════════════════════════ */
+const TEMPLATES = [
+  {
+    name: '💡 Brainstorm',
+    desc: 'Free-form ideation',
+    gradient: 'from-amber-400 to-orange-500',
+    bg: 'bg-amber-50 dark:bg-amber-950/30',
+  },
+  {
+    name: '🎨 Wireframe',
+    desc: 'UI/UX sketches',
+    gradient: 'from-violet-400 to-purple-500',
+    bg: 'bg-violet-50 dark:bg-violet-950/30',
+  },
+  {
+    name: '🔄 Retrospective',
+    desc: 'What went well?',
+    gradient: 'from-emerald-400 to-teal-500',
+    bg: 'bg-emerald-50 dark:bg-emerald-950/30',
+  },
+  {
+    name: '📋 Kanban',
+    desc: 'Task tracking',
+    gradient: 'from-blue-400 to-cyan-500',
+    bg: 'bg-blue-50 dark:bg-blue-950/30',
+  },
+];
 
 const Dashboard = () => {
   const [rooms, setRooms] = useState([]);
@@ -100,6 +131,18 @@ const Dashboard = () => {
     }
   };
 
+  const handleTemplateCreate = async (templateName) => {
+    setActionLoading(true);
+    try {
+      const response = await roomService.createRoom({ name: templateName, isPrivate: false });
+      navigate(`/room/${response.data.room.roomId}`);
+    } catch (err) {
+      console.error('Failed to create from template:', err);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const copyRoomId = (roomId) => {
     navigator.clipboard.writeText(roomId);
     setCopiedId(roomId);
@@ -131,12 +174,16 @@ const Dashboard = () => {
     return new Date(date).toLocaleDateString();
   };
 
+  // Hour-based greeting
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Navbar */}
       <nav className="sticky top-0 z-40">
         {/* Gradient accent line */}
-        <div className="h-[2px] bg-gradient-to-r from-blue-500 via-violet-500 to-purple-500" />
+        <div className="h-[2px] bg-gradient-to-r from-blue-500 via-violet-500 to-purple-500 animate-gradient bg-[length:200%_200%]" />
         <div className="bg-white/70 dark:bg-gray-900/70 backdrop-blur-2xl border-b border-gray-200/40 dark:border-gray-800/40 shadow-sm shadow-gray-200/20 dark:shadow-black/10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
@@ -191,7 +238,6 @@ const Dashboard = () => {
                         )}
                       </div>
                     </div>
-                    {/* Online indicator */}
                     <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 rounded-full border-2 border-white dark:border-gray-900" />
                   </div>
 
@@ -218,61 +264,70 @@ const Dashboard = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Welcome Header */}
-        <div className="mb-8">
+        <div className="mb-8 animate-fade-in-up">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-            Welcome back, <span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">{user?.username}</span> 👋
+            {greeting}, <span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">{user?.username}</span> 👋
           </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Manage your boards and start collaborating</p>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/80 dark:border-gray-800/80 p-5">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/50">
-                <LayoutGrid className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          {[
+            { icon: <LayoutGrid className="w-5 h-5 text-blue-600 dark:text-blue-400" />, label: 'Total Boards', value: rooms.length, bg: 'bg-blue-50 dark:bg-blue-950/50', delay: '0s' },
+            { icon: <Sparkles className="w-5 h-5 text-violet-600 dark:text-violet-400" />, label: 'Created by You', value: rooms.filter(r => r.host?._id === user?.id).length, bg: 'bg-violet-50 dark:bg-violet-950/50', delay: '0.08s' },
+            { icon: <Users className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />, label: 'Joined Boards', value: rooms.filter(r => r.host?._id !== user?.id).length, bg: 'bg-emerald-50 dark:bg-emerald-950/50', delay: '0.16s' },
+          ].map(s => (
+            <div key={s.label} className="animate-fade-in-up bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/80 dark:border-gray-800/80 p-5 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-700 transition-all duration-300 hover:-translate-y-0.5 group" style={{ animationDelay: s.delay }}>
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`p-2 rounded-xl ${s.bg} group-hover:scale-110 transition-transform`}>
+                  {s.icon}
+                </div>
+                <span className="text-sm font-medium text-gray-500 dark:text-gray-400">{s.label}</span>
               </div>
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Boards</span>
+              <p className="text-3xl font-bold text-gray-900 dark:text-white">{s.value}</p>
             </div>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">{rooms.length}</p>
-          </div>
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/80 dark:border-gray-800/80 p-5">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 rounded-xl bg-violet-50 dark:bg-violet-950/50">
-                <Sparkles className="w-5 h-5 text-violet-600 dark:text-violet-400" />
-              </div>
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Created by You</span>
-            </div>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">
-              {rooms.filter(r => r.host?._id === user?.id).length}
-            </p>
-          </div>
-          <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/80 dark:border-gray-800/80 p-5">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/50">
-                <Users className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Joined Boards</span>
-            </div>
-            <p className="text-3xl font-bold text-gray-900 dark:text-white">
-              {rooms.filter(r => r.host?._id !== user?.id).length}
-            </p>
+          ))}
+        </div>
+
+        {/* Quick-Start Templates */}
+        <div className="mb-8 animate-fade-in-up delay-200">
+          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Lightbulb className="w-4 h-4" />
+            Quick Start
+          </h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {TEMPLATES.map((t, i) => (
+              <button
+                key={t.name}
+                onClick={() => handleTemplateCreate(t.name)}
+                disabled={actionLoading}
+                className={`animate-fade-in-up group relative p-4 rounded-2xl ${t.bg} border border-gray-200/50 dark:border-gray-800/50 hover:border-gray-300 dark:hover:border-gray-700 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg text-left`}
+                style={{ animationDelay: `${0.24 + i * 0.06}s` }}
+              >
+                <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${t.gradient} flex items-center justify-center mb-2 group-hover:scale-110 group-hover:rotate-3 transition-transform shadow-sm`}>
+                  <Plus className="w-4 h-4 text-white" />
+                </div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">{t.name}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t.desc}</p>
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Actions Bar */}
-        <div className="flex flex-col sm:flex-row gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row gap-4 mb-8 animate-fade-in-up delay-300">
           <div className="flex gap-3">
             <button
               onClick={() => { setShowCreateModal(true); setError(''); }}
-              className="group inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all text-sm"
+              className="group inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all text-sm hover:-translate-y-0.5 active:scale-[0.98]"
             >
               <Plus className="w-5 h-5" />
               Create Board
             </button>
             <button
               onClick={() => { setShowJoinModal(true); setError(''); }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold rounded-xl transition-all text-sm"
+              className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold rounded-xl transition-all text-sm hover:-translate-y-0.5"
             >
               <ArrowRight className="w-5 h-5" />
               Join Board
@@ -287,7 +342,7 @@ const Dashboard = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search boards..."
-                className="w-full pl-11 pr-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                className="w-full pl-11 pr-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm transition-all outline-none"
               />
             </div>
           </div>
@@ -299,7 +354,7 @@ const Dashboard = () => {
             <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
           </div>
         ) : filteredRooms.length === 0 ? (
-          <div className="text-center py-20">
+          <div className="text-center py-20 animate-fade-in-up">
             <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-6">
               <LayoutGrid className="w-10 h-10 text-gray-300 dark:text-gray-600" />
             </div>
@@ -315,7 +370,7 @@ const Dashboard = () => {
             {!searchQuery && (
               <button
                 onClick={() => { setShowCreateModal(true); setError(''); }}
-                className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all"
+                className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5"
               >
                 <Plus className="w-5 h-5" />
                 Create Your First Board
@@ -332,7 +387,7 @@ const Dashboard = () => {
                   Your Boards ({hostedRooms.length})
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {hostedRooms.map((room) => (
+                  {hostedRooms.map((room, i) => (
                     <RoomCard
                       key={room._id}
                       room={room}
@@ -342,6 +397,7 @@ const Dashboard = () => {
                       onDelete={handleDeleteRoom}
                       onEnter={() => navigate(`/room/${room.roomId}`)}
                       getTimeAgo={getTimeAgo}
+                      delay={i * 0.06}
                     />
                   ))}
                 </div>
@@ -356,7 +412,7 @@ const Dashboard = () => {
                   Joined Boards ({joinedRooms.length})
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {joinedRooms.map((room) => (
+                  {joinedRooms.map((room, i) => (
                     <RoomCard
                       key={room._id}
                       room={room}
@@ -366,6 +422,7 @@ const Dashboard = () => {
                       onDelete={handleDeleteRoom}
                       onEnter={() => navigate(`/room/${room.roomId}`)}
                       getTimeAgo={getTimeAgo}
+                      delay={i * 0.06}
                     />
                   ))}
                 </div>
@@ -388,7 +445,7 @@ const Dashboard = () => {
                 type="text"
                 value={newRoomName}
                 onChange={(e) => setNewRoomName(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                 placeholder="e.g., Sprint Planning Board"
                 required
                 autoFocus
@@ -403,9 +460,7 @@ const Dashboard = () => {
                   isPrivate ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
                 }`}
               >
-                <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${
-                  isPrivate ? 'translate-x-5.5 left-0.5' : 'left-0.5'
-                }`}
+                <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform`}
                   style={{ transform: isPrivate ? 'translateX(22px)' : 'translateX(2px)' }}
                 />
               </button>
@@ -419,7 +474,7 @@ const Dashboard = () => {
             </div>
 
             {isPrivate && (
-              <div>
+              <div className="animate-fade-in-up">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Board Password
                 </label>
@@ -427,7 +482,7 @@ const Dashboard = () => {
                   type="password"
                   value={roomPassword}
                   onChange={(e) => setRoomPassword(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                   placeholder="Enter a password"
                   required={isPrivate}
                 />
@@ -468,7 +523,7 @@ const Dashboard = () => {
                 type="text"
                 value={joinRoomId}
                 onChange={(e) => setJoinRoomId(e.target.value.toUpperCase())}
-                className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono uppercase tracking-wider"
+                className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono uppercase tracking-wider outline-none transition-all"
                 placeholder="ABCD1234"
                 required
                 autoFocus
@@ -483,7 +538,7 @@ const Dashboard = () => {
                 type="password"
                 value={joinPassword}
                 onChange={(e) => setJoinPassword(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                 placeholder="Enter password (optional)"
               />
             </div>
@@ -514,10 +569,27 @@ const Dashboard = () => {
 
 /* ───────────── Sub-components ───────────── */
 
-const RoomCard = ({ room, isHost, copiedId, onCopy, onDelete, onEnter, getTimeAgo }) => (
-  <div className="group bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/80 dark:border-gray-800/80 hover:border-blue-200 dark:hover:border-blue-900/50 hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300 overflow-hidden">
+const RoomCard = ({ room, isHost, copiedId, onCopy, onDelete, onEnter, getTimeAgo, delay = 0 }) => (
+  <div
+    className="animate-fade-in-up group bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/80 dark:border-gray-800/80 hover:border-blue-200 dark:hover:border-blue-900/50 hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300 overflow-hidden hover:-translate-y-1"
+    style={{ animationDelay: `${delay}s` }}
+  >
     {/* Gradient top accent */}
     <div className={`h-1.5 ${isHost ? 'bg-gradient-to-r from-blue-500 to-violet-500' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`} />
+
+    {/* Gradient preview */}
+    <div className={`h-16 ${isHost ? 'bg-gradient-to-br from-blue-50 via-violet-50 to-purple-50 dark:from-blue-950/30 dark:via-violet-950/30 dark:to-purple-950/30' : 'bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/30 dark:via-teal-950/30 dark:to-cyan-950/30'} relative`}>
+      {/* Decorative pattern */}
+      <div className="absolute inset-0 opacity-[0.07]"
+        style={{
+          backgroundImage: 'radial-gradient(circle, currentColor 1px, transparent 1px)',
+          backgroundSize: '12px 12px',
+        }}
+      />
+      <div className="absolute bottom-2 right-3 text-[10px] font-mono text-gray-400/80 dark:text-gray-600/80">
+        {room.roomId}
+      </div>
+    </div>
 
     <div className="p-5">
       <div className="flex items-start justify-between mb-3">
@@ -572,7 +644,7 @@ const RoomCard = ({ room, isHost, copiedId, onCopy, onDelete, onEnter, getTimeAg
       <div className="flex gap-2">
         <button
           onClick={onEnter}
-          className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition-all"
+          className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 active:scale-[0.98]"
         >
           Enter Board
           <ChevronRight className="w-4 h-4" />
@@ -580,7 +652,7 @@ const RoomCard = ({ room, isHost, copiedId, onCopy, onDelete, onEnter, getTimeAg
         {isHost && (
           <button
             onClick={() => onDelete(room.roomId)}
-            className="p-2.5 border border-red-200/80 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 dark:text-red-400 rounded-xl transition"
+            className="p-2.5 border border-red-200/80 dark:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-950/30 text-red-500 dark:text-red-400 rounded-xl transition hover:scale-105 active:scale-95"
             title="Delete Board"
           >
             <Trash2 className="w-4 h-4" />
@@ -594,7 +666,7 @@ const RoomCard = ({ room, isHost, copiedId, onCopy, onDelete, onEnter, getTimeAg
 const Modal = ({ onClose, title, children }) => (
   <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50" onClick={onClose}>
     <div
-      className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full border border-gray-200/80 dark:border-gray-800/80"
+      className="animate-modal bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full border border-gray-200/80 dark:border-gray-800/80"
       onClick={e => e.stopPropagation()}
     >
       <div className="flex items-center justify-between p-6 pb-0">
@@ -614,7 +686,7 @@ const Modal = ({ onClose, title, children }) => (
 );
 
 const ErrorBanner = ({ message }) => (
-  <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 rounded-xl text-sm flex items-center gap-2">
+  <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 rounded-xl text-sm flex items-center gap-2 animate-fade-in-up">
     <X className="w-4 h-4 flex-shrink-0" />
     {message}
   </div>

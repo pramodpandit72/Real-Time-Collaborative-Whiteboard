@@ -6,7 +6,7 @@ const BRUSH_TOOLS = new Set(['pencil','pen','marker','highlighter','eraser']);
 
 const Canvas = forwardRef(({ 
   strokes, setStrokes, tool, color, brushSize, 
-  roomId, canDraw, remoteCursors, addToHistory, canvasDark, zoom
+  roomId, canDraw, remoteCursors, addToHistory, canvasDark, zoom, gridMode
 }, ref) => {
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
@@ -19,6 +19,13 @@ const Canvas = forwardRef(({
   const { sendDrawStart, sendDrawMove, sendDrawEnd, sendCursorMove } = useSocket();
   const strokesRef = useRef(strokes);
   strokesRef.current = strokes;
+
+  // Laser pointer trail
+  const [laserDots, setLaserDots] = useState([]);
+  const laserIdRef = useRef(0);
+
+  // Minimap
+  const minimapRef = useRef(null);
 
   const BG = canvasDark ? '#1a1a2e' : '#ffffff';
 
@@ -47,6 +54,9 @@ const Canvas = forwardRef(({
 
   useEffect(() => { redraw(); }, [strokes, canvasDark, zoom]);
 
+  // Update minimap when strokes change
+  useEffect(() => { updateMinimap(); }, [strokes, canvasDark]);
+
   // ─── Redraw All ───
   const redraw = useCallback(() => {
     const ctx = ctxRef.current;
@@ -64,6 +74,27 @@ const Canvas = forwardRef(({
     ctx.restore();
   }, [strokes, canvasDark, zoom]);
 
+  // ─── Minimap ───
+  const updateMinimap = useCallback(() => {
+    const miniCanvas = minimapRef.current;
+    const mainCanvas = canvasRef.current;
+    if (!miniCanvas || !mainCanvas) return;
+    const mCtx = miniCanvas.getContext('2d');
+    const mW = miniCanvas.width;
+    const mH = miniCanvas.height;
+    mCtx.clearRect(0, 0, mW, mH);
+    mCtx.fillStyle = canvasDark ? '#1a1a2e' : '#ffffff';
+    mCtx.fillRect(0, 0, mW, mH);
+
+    // Scale to fit
+    const { width, height } = mainCanvas.getBoundingClientRect();
+    const scale = Math.min(mW / width, mH / height);
+    mCtx.save();
+    mCtx.scale(scale, scale);
+    strokesRef.current.forEach(s => renderStroke(mCtx, s));
+    mCtx.restore();
+  }, [strokes, canvasDark]);
+
   // ─── Render Single Stroke ───
   const renderStroke = (ctx, s) => {
     if (!s?.points?.length) return;
@@ -71,7 +102,6 @@ const Canvas = forwardRef(({
     const isEraser = s.tool === 'eraser';
     const strokeColor = isEraser ? BG : s.color;
     
-    // Brush style variations
     switch (s.tool) {
       case 'marker':
         ctx.globalAlpha = 0.7;
@@ -189,11 +219,18 @@ const Canvas = forwardRef(({
     return { x: (src.clientX - rect.left) / z, y: (src.clientY - rect.top) / z };
   };
 
-  // ─── Mouse / Touch Handlers (optimized — use refs to avoid state lag) ───
+  // ─── Mouse / Touch Handlers ───
   const handleStart = (e) => {
     if (!canDraw) return;
     e.preventDefault();
     const pt = getCoords(e);
+
+    // Laser pointer — just add dots, don't start a stroke
+    if (tool === 'laser') {
+      addLaserDot(pt);
+      drawingRef.current = true;
+      return;
+    }
 
     if (tool === 'text') {
       setTextInput({ x: pt.x * (zoom || 1), y: pt.y * (zoom || 1), visible: true });
@@ -229,6 +266,12 @@ const Canvas = forwardRef(({
     if (!drawingRef.current) return;
     e.preventDefault();
 
+    // Laser pointer trail
+    if (tool === 'laser') {
+      addLaserDot(pt);
+      return;
+    }
+
     const stroke = currentStrokeRef.current;
     if (!stroke) return;
 
@@ -247,7 +290,6 @@ const Canvas = forwardRef(({
       ctx.restore();
     } else {
       stroke.points.push(pt);
-      // Draw directly onto canvas for zero-lag
       const ctx = ctxRef.current;
       const z = zoom || 1;
       ctx.save();
@@ -274,6 +316,9 @@ const Canvas = forwardRef(({
     e?.preventDefault();
     drawingRef.current = false;
 
+    // Laser has no stroke to save
+    if (tool === 'laser') return;
+
     const stroke = currentStrokeRef.current;
     if (stroke) {
       let final = stroke;
@@ -290,8 +335,17 @@ const Canvas = forwardRef(({
     }
     currentStrokeRef.current = null;
     shapeStartRef.current = null;
-    // Full redraw to clean up
     requestAnimationFrame(redraw);
+  };
+
+  // ─── Laser Pointer ───
+  const addLaserDot = (pt) => {
+    const id = laserIdRef.current++;
+    const z = zoom || 1;
+    setLaserDots(prev => [...prev, { id, x: pt.x * z, y: pt.y * z }]);
+    setTimeout(() => {
+      setLaserDots(prev => prev.filter(d => d.id !== id));
+    }, 600);
   };
 
   // ─── Text ───
@@ -312,6 +366,7 @@ const Canvas = forwardRef(({
     switch (tool) {
       case 'text': return 'text';
       case 'eraser': return 'cell';
+      case 'laser': return 'crosshair';
       case 'pencil': return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z' fill='%23F6B93B' stroke='%23333' stroke-width='1.5'/%3E%3C/svg%3E") 2 22, crosshair`;
       case 'pen': return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'%3E%3Cpath d='M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z' fill='none' stroke='%23333' stroke-width='1.5'/%3E%3Ccircle cx='11' cy='11' r='2' fill='%23333'/%3E%3C/svg%3E") 2 20, crosshair`;
       case 'marker': return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'%3E%3Crect x='8' y='2' width='8' height='16' rx='2' fill='%238B5CF6' stroke='%23333' stroke-width='1' transform='rotate(-45 12 10)'/%3E%3C/svg%3E") 4 20, crosshair`;
@@ -320,8 +375,11 @@ const Canvas = forwardRef(({
     }
   };
 
+  // Grid mode class
+  const gridClass = gridMode === 'dots' ? 'canvas-dots' : gridMode === 'lines' ? 'canvas-lines' : '';
+
   return (
-    <div ref={containerRef} className={`w-full h-full relative ${canvasDark ? 'bg-[#1a1a2e]' : 'bg-white'}`}>
+    <div ref={containerRef} className={`w-full h-full relative ${canvasDark ? 'bg-[#1a1a2e]' : 'bg-white'} ${gridClass}`}>
       <canvas
         ref={canvasRef}
         className="absolute inset-0"
@@ -334,6 +392,11 @@ const Canvas = forwardRef(({
         onTouchMove={handleMove}
         onTouchEnd={handleEnd}
       />
+
+      {/* Laser pointer dots */}
+      {laserDots.map(dot => (
+        <div key={dot.id} className="laser-dot" style={{ left: dot.x - 4, top: dot.y - 4 }} />
+      ))}
 
       {/* Text Input */}
       {textInput?.visible && (
@@ -369,12 +432,17 @@ const Canvas = forwardRef(({
 
       {/* Tool + zoom badge */}
       {canDraw && (
-        <div className="absolute bottom-3 right-3 flex items-center gap-2">
+        <div className="absolute bottom-3 left-3 flex items-center gap-2">
           <span className="px-2.5 py-1 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-lg text-[11px] text-gray-500 dark:text-gray-400 shadow-sm border border-gray-200/50 dark:border-gray-700/50 capitalize font-medium">
-            {tool} · {Math.round((zoom || 1) * 100)}%
+            {tool === 'laser' ? '🔴 Laser' : tool} · {Math.round((zoom || 1) * 100)}%
           </span>
         </div>
       )}
+
+      {/* Minimap */}
+      <div className="minimap">
+        <canvas ref={minimapRef} width={160} height={100} className="w-full h-full" />
+      </div>
     </div>
   );
 });
