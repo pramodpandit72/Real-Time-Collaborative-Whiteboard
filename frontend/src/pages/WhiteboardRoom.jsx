@@ -65,6 +65,8 @@ const WhiteboardRoom = () => {
   const [stickyNotes, setStickyNotes] = useState([]);
   const [gridMode, setGridMode] = useState('none');
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [fillEnabled, setFillEnabled] = useState(false);
+  const [fillColor, setFillColor] = useState('#3b82f6');
 
   const canvasRef = useRef(null);
 
@@ -640,6 +642,10 @@ const WhiteboardRoom = () => {
           gridMode={gridMode}
           onGridModeChange={setGridMode}
           onAddStickyNote={handleAddStickyNote}
+          fillEnabled={fillEnabled}
+          fillColor={fillColor}
+          onToggleFill={() => setFillEnabled(f => !f)}
+          onFillColorChange={setFillColor}
         />
 
         {/* Canvas */}
@@ -658,6 +664,8 @@ const WhiteboardRoom = () => {
             canvasDark={canvasDark}
             zoom={zoom}
             gridMode={gridMode}
+            fillEnabled={fillEnabled}
+            fillColor={fillColor}
           />
 
           {/* Sticky Notes */}

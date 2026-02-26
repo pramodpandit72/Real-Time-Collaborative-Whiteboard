@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Undo2, Redo2, Trash2, Download, Minus, Plus, Type, Sun, Moon, ZoomIn, ZoomOut, GripVertical, StickyNote, Grid3X3 } from 'lucide-react';
+import { Undo2, Redo2, Trash2, Download, Minus, Plus, Type, Sun, Moon, ZoomIn, ZoomOut, GripVertical, StickyNote, Grid3X3, PaintBucket } from 'lucide-react';
 
 const COLORS = [
   '#000000', '#ffffff', '#ef4444', '#f97316', '#eab308',
@@ -34,6 +34,8 @@ const GRID_MODES = [
   { id: 'lines', label: 'Lines' },
 ];
 
+const SHAPE_FILLABLE = new Set(['rectangle','circle','triangle','diamond','star','hexagon','pentagon','heart']);
+
 const Toolbar = ({
   tool, setTool, color, setColor,
   brushSize, setBrushSize,
@@ -45,6 +47,7 @@ const Toolbar = ({
   sidebarWidth, onSidebarResize,
   gridMode, onGridModeChange,
   onAddStickyNote,
+  fillEnabled, fillColor, onToggleFill, onFillColorChange,
 }) => {
   const [showShapes, setShowShapes] = useState(false);
   const isEraser = tool === 'eraser';
@@ -167,6 +170,55 @@ const Toolbar = ({
             className="text-[9px] text-blue-500 hover:text-blue-600 font-medium py-1 text-center">
             {showShapes ? '▲ Less' : `▼ +${SHAPES.length - 5}`}
           </button>
+        )}
+
+        {/* Fill Option — visible when a fillable shape tool is selected */}
+        {SHAPE_FILLABLE.has(tool) && (
+          <div className="px-1.5 mt-1 animate-fade-in-up">
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={onToggleFill}
+                disabled={!canDraw}
+                className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                  fillEnabled
+                    ? 'bg-violet-100 dark:bg-violet-900/50 text-violet-600 dark:text-violet-400 ring-1 ring-violet-300 dark:ring-violet-700'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                } ${!canDraw ? 'opacity-40' : ''}`}
+                title={fillEnabled ? 'Disable fill' : 'Enable fill'}
+              >
+                <PaintBucket className="w-3.5 h-3.5" />
+                {isWide && 'Fill'}
+              </button>
+              {fillEnabled && (
+                <div className="flex items-center gap-1">
+                  <input
+                    type="color"
+                    value={fillColor}
+                    onChange={e => onFillColorChange(e.target.value)}
+                    disabled={!canDraw}
+                    className="w-6 h-6 rounded-md border border-gray-300 dark:border-gray-600 cursor-pointer"
+                    title="Fill color"
+                  />
+                  {isWide && <span className="text-[8px] font-mono text-gray-400 truncate">{fillColor}</span>}
+                </div>
+              )}
+            </div>
+            {fillEnabled && (
+              <div className={`grid gap-[2px] mt-1 ${isWide ? 'grid-cols-5' : 'grid-cols-3'}`}>
+                {['#ef4444','#f97316','#eab308','#22c55e','#3b82f6','#8b5cf6','#ec4899','#14b8a6','#ffffff00'].map(c => (
+                  <button key={c} onClick={() => onFillColorChange(c)} disabled={!canDraw}
+                    className={`w-[14px] h-[14px] rounded-sm border transition-all mx-auto ${
+                      fillColor === c ? 'ring-2 ring-violet-500 ring-offset-1 scale-110' : 'border-gray-300 dark:border-gray-600 hover:scale-110'
+                    } ${!canDraw ? 'opacity-40' : 'cursor-pointer'}`}
+                    style={{ backgroundColor: c === '#ffffff00' ? 'transparent' : c }}
+                    title={c === '#ffffff00' ? 'Transparent' : c}
+                  >
+                    {c === '#ffffff00' && <span className="text-[8px] text-gray-400 leading-none">∅</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         )}
 
         <Divider />

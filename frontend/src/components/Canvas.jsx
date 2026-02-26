@@ -6,7 +6,8 @@ const BRUSH_TOOLS = new Set(['pencil','pen','marker','highlighter','eraser']);
 
 const Canvas = forwardRef(({ 
   strokes, setStrokes, tool, color, brushSize, 
-  roomId, canDraw, remoteCursors, addToHistory, canvasDark, zoom, gridMode
+  roomId, canDraw, remoteCursors, addToHistory, canvasDark, zoom, gridMode,
+  fillEnabled, fillColor
 }, ref) => {
   const canvasRef = useRef(null);
   const ctxRef = useRef(null);
@@ -165,7 +166,7 @@ const Canvas = forwardRef(({
       ctx.font = `${Math.max(s.brushSize * 3, 16)}px Inter, sans-serif`;
       ctx.fillText(s.text, s.points[0].x, s.points[0].y);
     } else if (SHAPE_TOOLS.has(s.tool) && s.points.length >= 2) {
-      drawShape(ctx, s.tool, s.points[0], s.points[s.points.length - 1]);
+      drawShape(ctx, s.tool, s.points[0], s.points[s.points.length - 1], s.fillEnabled, s.fillColor);
     } else if (s.points.length >= 2) {
       ctx.beginPath();
       ctx.moveTo(s.points[0].x, s.points[0].y);
@@ -176,7 +177,7 @@ const Canvas = forwardRef(({
   };
 
   // ─── Shape Drawing ───
-  const drawShape = (ctx, type, a, b) => {
+  const drawShape = (ctx, type, a, b, shouldFill, fColor) => {
     ctx.beginPath();
     const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
 
@@ -197,6 +198,10 @@ const Canvas = forwardRef(({
       }
 
       case 'rectangle':
+        if (shouldFill && fColor) {
+          ctx.fillStyle = fColor;
+          ctx.fillRect(a.x, a.y, b.x - a.x, b.y - a.y);
+        }
         ctx.strokeRect(a.x, a.y, b.x - a.x, b.y - a.y); return;
 
       case 'circle':
@@ -234,6 +239,11 @@ const Canvas = forwardRef(({
         ctx.bezierCurveTo(mx - w * 0.5, a.y - h * 0.1, a.x - w * 0.1, a.y + h * 0.5, mx, b.y);
         break;
       }
+    }
+    // Fill first, then stroke on top
+    if (shouldFill && fColor && type !== 'line' && type !== 'arrow') {
+      ctx.fillStyle = fColor;
+      ctx.fill();
     }
     ctx.stroke();
   };
@@ -277,7 +287,7 @@ const Canvas = forwardRef(({
 
     drawingRef.current = true;
     shapeStartRef.current = pt;
-    currentStrokeRef.current = { points: [pt], color, brushSize, tool, timestamp: Date.now() };
+    currentStrokeRef.current = { points: [pt], color, brushSize, tool, timestamp: Date.now(), fillEnabled: SHAPE_TOOLS.has(tool) ? fillEnabled : false, fillColor: fillEnabled ? fillColor : null };
 
     if (BRUSH_TOOLS.has(tool)) {
       const ctx = ctxRef.current;
@@ -323,7 +333,7 @@ const Canvas = forwardRef(({
       ctx.lineWidth = brushSize;
       ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       ctx.setLineDash([6, 4]);
-      drawShape(ctx, tool, shapeStartRef.current, pt);
+      drawShape(ctx, tool, shapeStartRef.current, pt, fillEnabled, fillColor);
       ctx.restore();
     } else {
       stroke.points.push(pt);
