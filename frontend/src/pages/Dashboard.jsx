@@ -6,39 +6,10 @@ import { roomService } from '../services/roomService';
 import {
   Plus, LogOut, Moon, Sun, Users, Calendar, Copy, Check,
   Trash2, ArrowRight, Loader2, Search, X, Pen, Lock,
-  LayoutGrid, Clock, Sparkles, ChevronRight,
-  Lightbulb, Columns, RotateCcw, Kanban
+  LayoutGrid, Clock, Sparkles, ChevronRight
 } from 'lucide-react';
 
-/* ═══════════════════════════════════════
-   QUICK-START TEMPLATES
-   ═══════════════════════════════════════ */
-const TEMPLATES = [
-  {
-    name: '💡 Brainstorm',
-    desc: 'Free-form ideation',
-    gradient: 'from-amber-400 to-orange-500',
-    bg: 'bg-amber-50 dark:bg-amber-950/30',
-  },
-  {
-    name: '🎨 Wireframe',
-    desc: 'UI/UX sketches',
-    gradient: 'from-violet-400 to-purple-500',
-    bg: 'bg-violet-50 dark:bg-violet-950/30',
-  },
-  {
-    name: '🔄 Retrospective',
-    desc: 'What went well?',
-    gradient: 'from-emerald-400 to-teal-500',
-    bg: 'bg-emerald-50 dark:bg-emerald-950/30',
-  },
-  {
-    name: '📋 Kanban',
-    desc: 'Task tracking',
-    gradient: 'from-blue-400 to-cyan-500',
-    bg: 'bg-blue-50 dark:bg-blue-950/30',
-  },
-];
+
 
 const Dashboard = () => {
   const [rooms, setRooms] = useState([]);
@@ -131,17 +102,7 @@ const Dashboard = () => {
     }
   };
 
-  const handleTemplateCreate = async (templateName) => {
-    setActionLoading(true);
-    try {
-      const response = await roomService.createRoom({ name: templateName, isPrivate: false });
-      navigate(`/room/${response.data.room.roomId}`);
-    } catch (err) {
-      console.error('Failed to create from template:', err);
-    } finally {
-      setActionLoading(false);
-    }
-  };
+
 
   const copyRoomId = (roomId) => {
     navigator.clipboard.writeText(roomId);
@@ -290,30 +251,7 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* Quick-Start Templates */}
-        <div className="mb-8 animate-fade-in-up delay-200">
-          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Lightbulb className="w-4 h-4" />
-            Quick Start
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {TEMPLATES.map((t, i) => (
-              <button
-                key={t.name}
-                onClick={() => handleTemplateCreate(t.name)}
-                disabled={actionLoading}
-                className={`animate-fade-in-up group relative p-4 rounded-2xl ${t.bg} border border-gray-200/50 dark:border-gray-800/50 hover:border-gray-300 dark:hover:border-gray-700 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg text-left`}
-                style={{ animationDelay: `${0.24 + i * 0.06}s` }}
-              >
-                <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${t.gradient} flex items-center justify-center mb-2 group-hover:scale-110 group-hover:rotate-3 transition-transform shadow-sm`}>
-                  <Plus className="w-4 h-4 text-white" />
-                </div>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">{t.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{t.desc}</p>
-              </button>
-            ))}
-          </div>
-        </div>
+
 
         {/* Actions Bar */}
         <div className="flex flex-col sm:flex-row gap-4 mb-8 animate-fade-in-up delay-300">

@@ -52,10 +52,44 @@ const Canvas = forwardRef(({
     return () => window.removeEventListener('resize', resize);
   }, []);
 
-  useEffect(() => { redraw(); }, [strokes, canvasDark, zoom]);
+  useEffect(() => { redraw(); }, [strokes, canvasDark, zoom, gridMode]);
 
   // Update minimap when strokes change
   useEffect(() => { updateMinimap(); }, [strokes, canvasDark]);
+
+  // ─── Draw Grid on Canvas ───
+  const drawGrid = (ctx, width, height) => {
+    if (!gridMode || gridMode === 'none') return;
+    const spacing = 20;
+    const dotColor = canvasDark ? '#374151' : '#d1d5db';
+    const lineColor = canvasDark ? 'rgba(55,65,81,0.5)' : 'rgba(209,213,219,0.7)';
+
+    if (gridMode === 'dots') {
+      ctx.fillStyle = dotColor;
+      for (let x = spacing; x < width; x += spacing) {
+        for (let y = spacing; y < height; y += spacing) {
+          ctx.beginPath();
+          ctx.arc(x, y, 1, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    } else if (gridMode === 'lines') {
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = 0.5;
+      for (let x = spacing; x < width; x += spacing) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+      }
+      for (let y = spacing; y < height; y += spacing) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+    }
+  };
 
   // ─── Redraw All ───
   const redraw = useCallback(() => {
@@ -67,12 +101,15 @@ const Canvas = forwardRef(({
     ctx.fillStyle = BG;
     ctx.fillRect(0, 0, width, height);
 
+    // Draw grid pattern directly on canvas
+    drawGrid(ctx, width, height);
+
     const z = zoom || 1;
     ctx.save();
     ctx.scale(z, z);
     strokesRef.current.forEach(s => renderStroke(ctx, s));
     ctx.restore();
-  }, [strokes, canvasDark, zoom]);
+  }, [strokes, canvasDark, zoom, gridMode]);
 
   // ─── Minimap ───
   const updateMinimap = useCallback(() => {
