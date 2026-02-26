@@ -40,6 +40,11 @@ const WhiteboardRoom = () => {
   const [eraserSize, setEraserSize] = useState(20);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+
+  // Multi-page state
+  const [pages, setPages] = useState([{ strokes: [], history: [[]], historyIndex: 0, stickyNotes: [] }]);
+  const [currentPage, setCurrentPage] = useState(0);
+  const pageCountRef = useRef(1);
   
   // UI state
   const [showChat, setShowChat] = useState(false);
@@ -81,9 +86,11 @@ const WhiteboardRoom = () => {
         // Fetch whiteboard data
         const wbResponse = await whiteboardService.getWhiteboard(roomId);
         if (wbResponse.data.whiteboard?.strokes) {
-          setStrokes(wbResponse.data.whiteboard.strokes);
-          setHistory([wbResponse.data.whiteboard.strokes]);
+          const s = wbResponse.data.whiteboard.strokes;
+          setStrokes(s);
+          setHistory([s]);
           setHistoryIndex(0);
+          setPages([{ strokes: s, history: [s], historyIndex: 0, stickyNotes: [] }]);
         }
 
         // Fetch messages
@@ -432,6 +439,69 @@ const WhiteboardRoom = () => {
     setHistoryIndex(prev => prev + 1);
   }, [historyIndex]);
 
+  // ─── Page Management ───
+  const saveCurrentPage = useCallback(() => {
+    setPages(prev => {
+      const updated = [...prev];
+      updated[currentPage] = { strokes, history, historyIndex, stickyNotes };
+      return updated;
+    });
+  }, [currentPage, strokes, history, historyIndex, stickyNotes]);
+
+  const switchPage = useCallback((idx) => {
+    if (idx === currentPage || idx < 0 || idx >= pages.length) return;
+    // Save current page
+    setPages(prev => {
+      const updated = [...prev];
+      updated[currentPage] = { strokes, history, historyIndex, stickyNotes };
+      return updated;
+    });
+    // Load target page
+    const target = pages[idx];
+    setStrokes(target.strokes);
+    setHistory(target.history);
+    setHistoryIndex(target.historyIndex);
+    setStickyNotes(target.stickyNotes);
+    setCurrentPage(idx);
+  }, [currentPage, pages, strokes, history, historyIndex, stickyNotes]);
+
+  const addPage = useCallback(() => {
+    // Save current page first
+    setPages(prev => {
+      const updated = [...prev];
+      updated[currentPage] = { strokes, history, historyIndex, stickyNotes };
+      updated.push({ strokes: [], history: [[]], historyIndex: 0, stickyNotes: [] });
+      return updated;
+    });
+    // Switch to new page
+    const newIdx = pages.length;
+    setStrokes([]);
+    setHistory([[]]);
+    setHistoryIndex(0);
+    setStickyNotes([]);
+    setCurrentPage(newIdx);
+    pageCountRef.current = newIdx + 1;
+  }, [currentPage, pages, strokes, history, historyIndex, stickyNotes]);
+
+  const deletePage = useCallback((idx) => {
+    if (pages.length <= 1) return; // Don't delete last page
+    if (!confirm(`Delete page ${idx + 1}?`)) return;
+    setPages(prev => {
+      const updated = [...prev];
+      updated.splice(idx, 1);
+      return updated;
+    });
+    const newIdx = idx >= pages.length - 1 ? idx - 1 : idx;
+    const target = pages[newIdx === idx ? (idx === 0 ? 1 : idx - 1) : newIdx];
+    if (target) {
+      setStrokes(target.strokes);
+      setHistory(target.history);
+      setHistoryIndex(target.historyIndex);
+      setStickyNotes(target.stickyNotes);
+    }
+    setCurrentPage(Math.min(newIdx, pages.length - 2));
+  }, [pages, strokes, history, historyIndex, stickyNotes]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -670,6 +740,60 @@ const WhiteboardRoom = () => {
 
           {/* Sticky Notes */}
           <StickyNoteOverlay notes={stickyNotes} setNotes={setStickyNotes} />
+
+          {/* ── Page Bar ── */}
+          {pages.length > 0 && (
+            <div className="absolute bottom-0 left-0 right-0 z-20 flex items-center justify-center py-2 px-4">
+              <div className="flex items-center gap-1 bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-2xl shadow-xl border border-gray-200/80 dark:border-gray-700/80 px-2 py-1.5">
+                {pages.map((page, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => switchPage(idx)}
+                    className={`group relative flex items-center justify-center min-w-[36px] h-8 px-2.5 rounded-xl text-xs font-semibold transition-all ${
+                      idx === currentPage
+                        ? 'bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-md shadow-blue-500/30 scale-105'
+                        : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
+                    }`}
+                    title={`Page ${idx + 1}${page.strokes.length > 0 ? ` · ${page.strokes.length} strokes` : ' · Empty'}`}
+                  >
+                    {idx + 1}
+                    {/* Stroke indicator dot */}
+                    {page.strokes.length > 0 && idx !== currentPage && (
+                      <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-blue-500 rounded-full" />
+                    )}
+                    {/* Delete on hover (for non-active pages, only if > 1 page) */}
+                    {pages.length > 1 && idx !== currentPage && (
+                      <span
+                        onClick={(e) => { e.stopPropagation(); deletePage(idx); }}
+                        className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-[8px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600 cursor-pointer shadow"
+                        title={`Delete page ${idx + 1}`}
+                      >
+                        ×
+                      </span>
+                    )}
+                  </button>
+                ))}
+
+                {/* Add page button */}
+                <button
+                  onClick={addPage}
+                  className="flex items-center justify-center w-8 h-8 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-500 dark:text-blue-400 transition-all hover:scale-110 active:scale-95 ml-0.5"
+                  title="Add new page"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                </button>
+
+                {/* Page count */}
+                <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+                <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium whitespace-nowrap">
+                  {currentPage + 1}/{pages.length}
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Remote Screen Share Viewer */}
           {remoteScreenShare && (
