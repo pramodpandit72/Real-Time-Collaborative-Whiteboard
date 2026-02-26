@@ -118,7 +118,7 @@ const Toolbar = ({
 
         <Divider />
 
-        {/* Laser + Sticky */}
+        {/* Laser + Sticky + Fill */}
         <Label text="Tools" wide={isWide} />
         <div className={`flex ${isWide ? 'flex-wrap justify-center gap-[2px] px-1' : 'flex-col items-center gap-[2px]'}`}>
           <ToolBtn
@@ -135,6 +135,14 @@ const Toolbar = ({
             disabled={!canDraw}
             title="Sticky Note"
             label={isWide ? 'Sticky' : undefined}
+          />
+          <ToolBtn
+            icon={<PaintBucket className="w-[18px] h-[18px]" />}
+            active={tool === 'fill'}
+            onClick={() => setTool('fill')}
+            disabled={!canDraw}
+            title="Paint Bucket — click a shape to fill it"
+            label={isWide ? 'Fill' : undefined}
           />
         </div>
 
@@ -172,8 +180,8 @@ const Toolbar = ({
           </button>
         )}
 
-        {/* Fill Option — visible when a fillable shape tool is selected */}
-        {SHAPE_FILLABLE.has(tool) && (
+        {/* Fill Option — visible when a fillable shape or the fill tool is selected */}
+        {(SHAPE_FILLABLE.has(tool) || tool === 'fill') && (
           <div className="px-1.5 mt-1 animate-fade-in-up">
             <div className="flex items-center gap-1.5">
               <button

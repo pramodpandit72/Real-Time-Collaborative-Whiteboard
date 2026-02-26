@@ -3,6 +3,7 @@ import { useSocket } from '../context/SocketContext';
 
 const SHAPE_TOOLS = new Set(['line','arrow','rectangle','circle','triangle','diamond','star','hexagon','pentagon','heart']);
 const BRUSH_TOOLS = new Set(['pencil','pen','marker','highlighter','eraser']);
+const FILLABLE_SHAPES = new Set(['rectangle','circle','triangle','diamond','star','hexagon','pentagon','heart']);
 
 const Canvas = forwardRef(({ 
   strokes, setStrokes, tool, color, brushSize, 
@@ -272,6 +273,20 @@ const Canvas = forwardRef(({
     e.preventDefault();
     const pt = getCoords(e);
 
+    // Paint bucket — fill an existing shape
+    if (tool === 'fill') {
+      const idx = hitTestShape(pt);
+      if (idx >= 0) {
+        const updated = [...strokesRef.current];
+        updated[idx] = { ...updated[idx], fillEnabled: true, fillColor: fillColor };
+        setStrokes(updated);
+        addToHistory(updated);
+        sendDrawEnd(roomId, updated[idx]);
+        redraw();
+      }
+      return;
+    }
+
     // Laser pointer — just add dots, don't start a stroke
     if (tool === 'laser') {
       addLaserDot(pt);
@@ -407,18 +422,62 @@ const Canvas = forwardRef(({
     setTextInput(null);
   };
 
+  // ─── Hit-test: find which shape the click lands inside ───
+  const hitTestShape = (pt) => {
+    // Walk strokes in reverse so topmost shape wins
+    for (let i = strokesRef.current.length - 1; i >= 0; i--) {
+      const s = strokesRef.current[i];
+      if (!FILLABLE_SHAPES.has(s.tool) || s.points.length < 2) continue;
+      const a = s.points[0], b = s.points[s.points.length - 1];
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+
+      switch (s.tool) {
+        case 'rectangle':
+          if (pt.x >= Math.min(a.x, b.x) && pt.x <= Math.max(a.x, b.x) &&
+              pt.y >= Math.min(a.y, b.y) && pt.y <= Math.max(a.y, b.y)) return i;
+          break;
+        case 'circle': {
+          const rx = Math.abs(b.x - a.x) / 2, ry = Math.abs(b.y - a.y) / 2;
+          if (rx > 0 && ry > 0 && ((pt.x - mx) ** 2 / rx ** 2 + (pt.y - my) ** 2 / ry ** 2) <= 1) return i;
+          break;
+        }
+        case 'triangle': {
+          if (ptInTriangle(pt, { x: mx, y: a.y }, { x: b.x, y: b.y }, { x: a.x, y: b.y })) return i;
+          break;
+        }
+        default: {
+          // For other closed shapes, use bounding box as approximation
+          if (pt.x >= Math.min(a.x, b.x) && pt.x <= Math.max(a.x, b.x) &&
+              pt.y >= Math.min(a.y, b.y) && pt.y <= Math.max(a.y, b.y)) return i;
+        }
+      }
+    }
+    return -1;
+  };
+
+  // Point-in-triangle helper
+  const ptInTriangle = (p, v1, v2, v3) => {
+    const sign = (a, b, c) => (a.x - c.x) * (b.y - c.y) - (b.x - c.x) * (a.y - c.y);
+    const d1 = sign(p, v1, v2), d2 = sign(p, v2, v3), d3 = sign(p, v3, v1);
+    const hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+    const hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+    return !(hasNeg && hasPos);
+  };
+
   // ─── Cursor ───
   const getCursor = () => {
     if (!canDraw) return 'not-allowed';
+    const darkCrosshair = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cline x1='12' y1='0' x2='12' y2='24' stroke='white' stroke-width='3'/%3E%3Cline x1='0' y1='12' x2='24' y2='12' stroke='white' stroke-width='3'/%3E%3Cline x1='12' y1='0' x2='12' y2='24' stroke='%23333' stroke-width='1.5'/%3E%3Cline x1='0' y1='12' x2='24' y2='12' stroke='%23333' stroke-width='1.5'/%3E%3Ccircle cx='12' cy='12' r='2' fill='%23333'/%3E%3C/svg%3E") 12 12, crosshair`;
     switch (tool) {
       case 'text': return 'text';
       case 'eraser': return 'cell';
-      case 'laser': return 'crosshair';
+      case 'laser': return darkCrosshair;
+      case 'fill': return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M16 4l4 4-8 8H8v-4l8-8z' fill='%238B5CF6' stroke='%23333' stroke-width='1'/%3E%3Cpath d='M19 14s3 2.5 3 4.5a3 3 0 1 1-6 0c0-2 3-4.5 3-4.5z' fill='%233B82F6' stroke='%23333' stroke-width='0.5'/%3E%3C/svg%3E") 4 20, pointer`;
       case 'pencil': return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z' fill='%23F6B93B' stroke='%23333' stroke-width='1.5'/%3E%3C/svg%3E") 2 22, crosshair`;
       case 'pen': return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'%3E%3Cpath d='M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z' fill='none' stroke='%23333' stroke-width='1.5'/%3E%3Ccircle cx='11' cy='11' r='2' fill='%23333'/%3E%3C/svg%3E") 2 20, crosshair`;
       case 'marker': return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'%3E%3Crect x='8' y='2' width='8' height='16' rx='2' fill='%238B5CF6' stroke='%23333' stroke-width='1' transform='rotate(-45 12 10)'/%3E%3C/svg%3E") 4 20, crosshair`;
       case 'highlighter': return `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 24 24'%3E%3Crect x='8' y='2' width='8' height='16' rx='2' fill='%23FBBF24' fill-opacity='0.6' stroke='%23F59E0B' stroke-width='1' transform='rotate(-45 12 10)'/%3E%3C/svg%3E") 4 20, crosshair`;
-      default: return 'crosshair';
+      default: return darkCrosshair;
     }
   };
 
