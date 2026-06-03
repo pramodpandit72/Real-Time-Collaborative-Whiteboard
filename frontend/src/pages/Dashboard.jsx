@@ -121,8 +121,8 @@ const Dashboard = () => {
     room.roomId.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const hostedRooms = filteredRooms.filter(r => r.host?._id === user?.id);
-  const joinedRooms = filteredRooms.filter(r => r.host?._id !== user?.id);
+  const hostedRooms = filteredRooms.filter(r => r.host?._id === (user?.id || user?._id));
+  const joinedRooms = filteredRooms.filter(r => r.host?._id !== (user?.id || user?._id));
 
   const handleLogout = () => {
     logout();

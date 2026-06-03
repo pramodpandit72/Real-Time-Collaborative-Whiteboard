@@ -150,22 +150,28 @@ const WhiteboardRoom = () => {
     });
 
     socket.on('user-joined', (data) => {
-      console.log('User joined:', data.user.username);
+      if (data?.user?.username) {
+        console.log('User joined:', data.user.username);
+      }
     });
 
     socket.on('user-left', (data) => {
-      console.log('User left:', data.user.username);
-      // Remove their cursor
-      delete latestRemoteCursorsRef.current[data.user.id];
-      cursorsChangedRef.current = true;
+      if (data?.user?.username) {
+        console.log('User left:', data.user.username);
+      }
+      if (data?.user?.id) {
+        // Remove their cursor
+        delete latestRemoteCursorsRef.current[data.user.id];
+        cursorsChangedRef.current = true;
+      }
     });
 
     socket.on('active-users', (data) => {
-      setActiveUsers(data.users);
+      setActiveUsers(data?.users || []);
     });
 
     socket.on('user-kicked', (data) => {
-      if (data.userId === user?.id) {
+      if (data?.userId === (user?.id || user?._id)) {
         navigate('/dashboard');
       }
     });
@@ -206,6 +212,7 @@ const WhiteboardRoom = () => {
     });
 
     socket.on('user-typing', (data) => {
+      if (!data?.user?.id) return;
       setTypingUsers(prev => {
         if (!prev.find(u => u.id === data.user.id)) {
           return [...prev, data.user];
@@ -215,11 +222,14 @@ const WhiteboardRoom = () => {
     });
 
     socket.on('user-stopped-typing', (data) => {
-      setTypingUsers(prev => prev.filter(u => u.id !== data.userId));
+      if (data?.userId) {
+        setTypingUsers(prev => prev.filter(u => u.id !== data.userId));
+      }
     });
 
     // Cursor events
     socket.on('cursor-move', (data) => {
+      if (!data?.userId) return;
       latestRemoteCursorsRef.current[data.userId] = {
         position: data.position,
         username: data.username

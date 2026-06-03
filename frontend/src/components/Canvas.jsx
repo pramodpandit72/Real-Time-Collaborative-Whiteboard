@@ -9,8 +9,8 @@ const PAGE_WIDTH = 2000;
 const PAGE_HEIGHT = 1200;
 
 const Canvas = forwardRef(({ 
-  strokes, setStrokes, tool, color, brushSize, 
-  roomId, canDraw, remoteCursors, addToHistory, canvasDark, zoom, gridMode,
+  strokes = [], setStrokes, tool, color, brushSize, 
+  roomId, canDraw, remoteCursors = {}, addToHistory, canvasDark, zoom, gridMode,
   fillEnabled, fillColor
 }, ref) => {
   const canvasRef = useRef(null);
@@ -22,8 +22,8 @@ const Canvas = forwardRef(({
   const [textInput, setTextInput] = useState(null);
   const textRef = useRef(null);
   const { sendDrawStart, sendDrawMove, sendDrawEnd, sendCursorMove } = useSocket();
-  const strokesRef = useRef(strokes);
-  strokesRef.current = strokes;
+  const strokesRef = useRef(strokes || []);
+  strokesRef.current = strokes || [];
 
   // Throttling refs
   const lastCursorPtRef = useRef(null);
@@ -135,52 +135,56 @@ const Canvas = forwardRef(({
 
   // ─── Redraw All ───
   const redraw = useCallback(() => {
-    const ctx = ctxRef.current;
-    const canvas = canvasRef.current;
-    if (!ctx || !canvas) return;
-    const { width, height } = canvas.getBoundingClientRect();
-    ctx.clearRect(0, 0, width, height);
+    try {
+      const ctx = ctxRef.current;
+      const canvas = canvasRef.current;
+      if (!ctx || !canvas) return;
+      const { width, height } = canvas.getBoundingClientRect();
+      ctx.clearRect(0, 0, width, height);
 
-    // Clear canvas with workspace background color (outside the page)
-    ctx.fillStyle = canvasDark ? '#0f172a' : '#f1f5f9';
-    ctx.fillRect(0, 0, width, height);
+      // Clear canvas with workspace background color (outside the page)
+      ctx.fillStyle = canvasDark ? '#0f172a' : '#f1f5f9';
+      ctx.fillRect(0, 0, width, height);
 
-    const z = zoom || 1;
-    ctx.save();
-    ctx.scale(z, z);
+      const z = zoom || 1;
+      ctx.save();
+      ctx.scale(z, z);
 
-    // Draw whiteboard page paper sheet with shadow
-    const pageBG = canvasDark ? '#1e293b' : '#ffffff';
-    ctx.shadowColor = canvasDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(15, 23, 42, 0.08)';
-    ctx.shadowBlur = 10;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 4;
-    ctx.fillStyle = pageBG;
-    ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
-    
-    // Reset shadow
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
+      // Draw whiteboard page paper sheet with shadow
+      const pageBG = canvasDark ? '#1e293b' : '#ffffff';
+      ctx.shadowColor = canvasDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(15, 23, 42, 0.08)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 4;
+      ctx.fillStyle = pageBG;
+      ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+      
+      // Reset shadow
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
 
-    // Draw page border
-    ctx.strokeStyle = canvasDark ? '#64748b' : '#475569';
-    ctx.lineWidth = 3;
-    ctx.strokeRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+      // Draw page border
+      ctx.strokeStyle = canvasDark ? '#64748b' : '#475569';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
 
-    // Draw inner margin guides
-    ctx.strokeStyle = canvasDark ? 'rgba(100, 116, 139, 0.4)' : 'rgba(71, 85, 105, 0.3)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([5, 5]);
-    ctx.strokeRect(10, 10, PAGE_WIDTH - 20, PAGE_HEIGHT - 20);
-    ctx.setLineDash([]);
+      // Draw inner margin guides
+      ctx.strokeStyle = canvasDark ? 'rgba(100, 116, 139, 0.4)' : 'rgba(71, 85, 105, 0.3)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([5, 5]);
+      ctx.strokeRect(10, 10, PAGE_WIDTH - 20, PAGE_HEIGHT - 20);
+      ctx.setLineDash([]);
 
-    // Draw grid inside the page bounds
-    drawGrid(ctx, PAGE_WIDTH, PAGE_HEIGHT);
+      // Draw grid inside the page bounds
+      drawGrid(ctx, PAGE_WIDTH, PAGE_HEIGHT);
 
-    strokesRef.current.forEach(s => renderStroke(ctx, s));
-    ctx.restore();
+      strokesRef.current.forEach(s => renderStroke(ctx, s));
+      ctx.restore();
+    } catch (err) {
+      console.error('CRITICAL DRAWING ERROR:', err);
+    }
   }, [strokes, canvasDark, zoom, gridMode]);
 
   // ─── Render Single Stroke ───
@@ -580,15 +584,19 @@ const Canvas = forwardRef(({
       )}
 
       {/* Remote Cursors */}
-      {Object.entries(remoteCursors).map(([uid, { position, username }]) => (
-        <div key={uid} className="absolute pointer-events-none z-10"
-          style={{ left: position.x * (zoom || 1), top: position.y * (zoom || 1), transform: 'translate(-50%,-50%)' }}>
-          <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M5.5 3.21V20.8l6.99-6.99H21L5.5 3.21z" />
-          </svg>
-          <span className="absolute left-4 top-4 px-2 py-0.5 bg-blue-500 text-white text-[10px] rounded-md whitespace-nowrap shadow">{username}</span>
-        </div>
-      ))}
+      {Object.entries(remoteCursors || {}).map(([uid, cursor]) => {
+        if (!cursor || !cursor.position) return null;
+        const { position, username } = cursor;
+        return (
+          <div key={uid} className="absolute pointer-events-none z-10"
+            style={{ left: position.x * (zoom || 1), top: position.y * (zoom || 1), transform: 'translate(-50%,-50%)' }}>
+            <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M5.5 3.21V20.8l6.99-6.99H21L5.5 3.21z" />
+            </svg>
+            <span className="absolute left-4 top-4 px-2 py-0.5 bg-blue-500 text-white text-[10px] rounded-md whitespace-nowrap shadow">{username}</span>
+          </div>
+        );
+      })}
 
       {/* Drawing disabled */}
       {!canDraw && (
