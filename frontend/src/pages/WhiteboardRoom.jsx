@@ -32,6 +32,7 @@ const WhiteboardRoom = () => {
   const [userRole, setUserRole] = useState('participant');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [globalError, setGlobalError] = useState(null);
   
   // Canvas state
   const [strokes, setStrokes] = useState([]);
@@ -78,6 +79,22 @@ const WhiteboardRoom = () => {
   const canvasRef = useRef(null);
   const latestRemoteCursorsRef = useRef({});
   const cursorsChangedRef = useRef(false);
+
+  useEffect(() => {
+    const handleErr = (msg, url, line, col, errorObj) => {
+      setGlobalError({ msg, error: errorObj?.stack || errorObj?.message || msg });
+      return false;
+    };
+    window.onerror = handleErr;
+    const handleRejection = (e) => {
+      setGlobalError({ msg: 'Unhandled Promise Rejection', error: e.reason?.stack || e.reason?.message || String(e.reason) });
+    };
+    window.addEventListener('unhandledrejection', handleRejection);
+    return () => {
+      window.removeEventListener('onerror', handleErr);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, []);
 
   // Fetch room data
   useEffect(() => {
@@ -568,7 +585,17 @@ const WhiteboardRoom = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900 overflow-hidden">
+    <div className="h-screen flex flex-col bg-gray-100 dark:bg-gray-900 overflow-hidden relative">
+      {globalError && (
+        <div className="absolute inset-0 bg-red-900/95 text-white p-8 z-[999] overflow-auto select-text">
+          <h2 className="text-2xl font-bold">Uncaught Exception / Error Caught</h2>
+          <p className="mt-2 font-semibold text-lg">{globalError.msg}</p>
+          <pre className="mt-4 p-4 bg-black/40 rounded border border-white/10 text-xs font-mono whitespace-pre-wrap">{globalError.error}</pre>
+          <button onClick={() => setGlobalError(null)} className="mt-6 px-6 py-2.5 bg-white text-red-900 font-bold rounded-xl shadow-lg hover:scale-105 active:scale-95 transition cursor-pointer">
+            Close Debug Overlay
+          </button>
+        </div>
+      )}
       {/* Header */}
       <header className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border-b border-gray-200/80 dark:border-gray-700/80 px-4 py-2 flex-shrink-0">
         <div className="flex items-center justify-between">
