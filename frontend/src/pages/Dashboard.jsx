@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { roomService } from '../services/roomService';
+import { reviewService } from '../services/reviewService';
 import {
   Plus, LogOut, Moon, Sun, Users, Calendar, Copy, Check,
   Trash2, ArrowRight, Loader2, Search, X, Pen, Lock,
@@ -25,6 +26,11 @@ const Dashboard = () => {
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState(null);
+  
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSuccess, setReviewSuccess] = useState('');
 
   const { user, logout } = useAuth();
   const { isDark, toggleTheme } = useTheme();
@@ -123,6 +129,29 @@ const Dashboard = () => {
     navigate('/login');
   };
 
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!reviewComment.trim()) return;
+
+    setActionLoading(true);
+    setError('');
+    setReviewSuccess('');
+
+    try {
+      await reviewService.createReview(reviewRating, reviewComment);
+      setReviewSuccess('Thank you! Your review has been saved.');
+      setTimeout(() => {
+        setShowReviewModal(false);
+        setReviewSuccess('');
+        setReviewComment('');
+      }, 2000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to submit review');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const getTimeAgo = (date) => {
     const seconds = Math.floor((new Date() - new Date(date)) / 1000);
     if (seconds < 60) return 'just now';
@@ -143,20 +172,20 @@ const Dashboard = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Navbar */}
       <nav className="sticky top-0 z-40">
-        {/* Gradient accent line */}
-        <div className="h-[2px] bg-gradient-to-r from-blue-500 via-violet-500 to-purple-500 animate-gradient bg-[length:200%_200%]" />
+        {/* Flat accent line */}
+        <div className="h-[2px] bg-sky-500" />
         <div className="bg-white/70 dark:bg-gray-900/70 backdrop-blur-2xl border-b border-gray-200/40 dark:border-gray-800/40 shadow-sm shadow-gray-200/20 dark:shadow-black/10">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
               <Link to="/" className="flex items-center gap-3 group">
                 <div className="relative">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 via-violet-600 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
+                  <div className="w-10 h-10 rounded-xl bg-sky-500 flex items-center justify-center shadow-lg shadow-sky-500/20 group-hover:shadow-sky-500/40 transition-all duration-300 group-hover:scale-110 group-hover:rotate-3">
                     <Pen className="w-4.5 h-4.5 text-white transition-transform duration-300 group-hover:scale-110" />
                   </div>
                   <div className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-white dark:border-gray-900 animate-pulse" />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-lg font-extrabold bg-gradient-to-r from-blue-600 via-violet-600 to-purple-600 bg-clip-text text-transparent tracking-tight">
+                  <span className="text-lg font-extrabold text-sky-600 dark:text-sky-400 tracking-tight">
                     CollabBoard
                   </span>
                   <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 -mt-0.5 tracking-wider uppercase">
@@ -186,12 +215,12 @@ const Dashboard = () => {
                 {/* User Profile */}
                 <div className="flex items-center gap-3 pl-1">
                   <div className="relative group/avatar">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 via-violet-500 to-purple-500 p-[2px] shadow-md shadow-blue-500/10 transition-all duration-300 group-hover/avatar:shadow-blue-500/30 group-hover/avatar:scale-105">
+                    <div className="w-10 h-10 rounded-xl bg-sky-500 p-[2px] shadow-md shadow-sky-500/10 transition-all duration-300 group-hover/avatar:shadow-sky-500/30 group-hover/avatar:scale-105">
                       <div className="w-full h-full rounded-[10px] overflow-hidden bg-white dark:bg-gray-900">
                         {user?.avatar ? (
                           <img src={user.avatar} alt={user.username} className="w-full h-full object-cover" />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-500 to-violet-500">
+                          <div className="w-full h-full flex items-center justify-center bg-sky-500">
                             <span className="text-white font-bold text-sm">
                               {user?.username?.charAt(0).toUpperCase()}
                             </span>
@@ -227,7 +256,7 @@ const Dashboard = () => {
         {/* Welcome Header */}
         <div className="mb-8 animate-fade-in-up">
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-            {greeting}, <span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">{user?.username}</span> 👋
+            {greeting}, <span className="text-sky-600 dark:text-sky-400">{user?.username}</span> 👋
           </h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1">Manage your boards and start collaborating</p>
         </div>
@@ -235,9 +264,9 @@ const Dashboard = () => {
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
           {[
-            { icon: <LayoutGrid className="w-5 h-5 text-blue-600 dark:text-blue-400" />, label: 'Total Boards', value: rooms.length, bg: 'bg-blue-50 dark:bg-blue-950/50', delay: '0s' },
-            { icon: <Sparkles className="w-5 h-5 text-violet-600 dark:text-violet-400" />, label: 'Created by You', value: rooms.filter(r => r.host?._id === user?.id).length, bg: 'bg-violet-50 dark:bg-violet-950/50', delay: '0.08s' },
-            { icon: <Users className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />, label: 'Joined Boards', value: rooms.filter(r => r.host?._id !== user?.id).length, bg: 'bg-emerald-50 dark:bg-emerald-950/50', delay: '0.16s' },
+            { icon: <LayoutGrid className="w-5 h-5 text-sky-600 dark:text-sky-400" />, label: 'Total Boards', value: rooms.length, bg: 'bg-sky-50 dark:bg-sky-950/20', delay: '0s' },
+            { icon: <Sparkles className="w-5 h-5 text-green-600 dark:text-green-400" />, label: 'Created by You', value: rooms.filter(r => r.host?._id === user?.id).length, bg: 'bg-green-50 dark:bg-green-950/20', delay: '0.08s' },
+            { icon: <Users className="w-5 h-5 text-cyan-600 dark:text-cyan-400" />, label: 'Joined Boards', value: rooms.filter(r => r.host?._id !== user?.id).length, bg: 'bg-cyan-50 dark:bg-cyan-950/20', delay: '0.16s' },
           ].map(s => (
             <div key={s.label} className="animate-fade-in-up bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/80 dark:border-gray-800/80 p-5 hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-700 transition-all duration-300 hover:-translate-y-0.5 group" style={{ animationDelay: s.delay }}>
               <div className="flex items-center gap-3 mb-2">
@@ -255,20 +284,26 @@ const Dashboard = () => {
 
         {/* Actions Bar */}
         <div className="flex flex-col sm:flex-row gap-4 mb-8 animate-fade-in-up delay-300">
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             <button
               onClick={() => { setShowCreateModal(true); setError(''); }}
-              className="group inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40 transition-all text-sm hover:-translate-y-0.5 active:scale-[0.98]"
+              className="group inline-flex items-center gap-2 px-5 py-2.5 bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-xl shadow-lg shadow-sky-500/20 hover:shadow-sky-500/30 transition-all text-sm hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer"
             >
               <Plus className="w-5 h-5" />
               Create Board
             </button>
             <button
               onClick={() => { setShowJoinModal(true); setError(''); }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold rounded-xl transition-all text-sm hover:-translate-y-0.5"
+              className="inline-flex items-center gap-2 px-5 py-2.5 border-2 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold rounded-xl transition-all text-sm hover:-translate-y-0.5 cursor-pointer"
             >
               <ArrowRight className="w-5 h-5" />
               Join Board
+            </button>
+            <button
+              onClick={() => { setShowReviewModal(true); setReviewRating(5); setReviewComment(''); setError(''); }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-yellow-400 hover:bg-yellow-505 hover:bg-yellow-500 text-gray-900 font-semibold rounded-xl shadow-lg transition-all text-sm hover:-translate-y-0.5 cursor-pointer"
+            >
+              <span>⭐</span> Give Review
             </button>
           </div>
 
@@ -308,7 +343,7 @@ const Dashboard = () => {
             {!searchQuery && (
               <button
                 onClick={() => { setShowCreateModal(true); setError(''); }}
-                className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5"
+                className="mt-6 inline-flex items-center gap-2 px-6 py-3 bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-xl shadow-lg shadow-sky-500/20 transition-all hover:-translate-y-0.5 cursor-pointer"
               >
                 <Plus className="w-5 h-5" />
                 Create Your First Board
@@ -431,14 +466,14 @@ const Dashboard = () => {
               <button
                 type="button"
                 onClick={() => setShowCreateModal(false)}
-                className="flex-1 py-3 px-4 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                className="flex-1 py-3 px-4 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={actionLoading}
-                className="flex-1 py-3 px-4 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 disabled:opacity-50 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-4 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-semibold rounded-xl shadow-lg shadow-sky-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
                 Create
@@ -485,17 +520,79 @@ const Dashboard = () => {
               <button
                 type="button"
                 onClick={() => setShowJoinModal(false)}
-                className="flex-1 py-3 px-4 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                className="flex-1 py-3 px-4 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={actionLoading}
-                className="flex-1 py-3 px-4 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 disabled:opacity-50 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/25 transition flex items-center justify-center gap-2"
+                className="flex-1 py-3 px-4 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-semibold rounded-xl shadow-lg shadow-sky-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
               >
                 {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
                 Join
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+      {/* Review Modal */}
+      {showReviewModal && (
+        <Modal onClose={() => setShowReviewModal(false)} title="Write a Review">
+          {error && <ErrorBanner message={error} />}
+          {reviewSuccess && (
+            <div className="mb-4 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 text-green-605 text-green-600 dark:text-green-400 rounded-xl text-sm flex items-center gap-2">
+              {reviewSuccess}
+            </div>
+          )}
+          <form onSubmit={handleSubmitReview} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Rating
+              </label>
+              <div className="flex gap-2 text-2xl">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setReviewRating(star)}
+                    className="hover:scale-115 transition-transform text-yellow-400 cursor-pointer"
+                  >
+                    {star <= reviewRating ? '★' : '☆'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Your Review
+              </label>
+              <textarea
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                rows={4}
+                className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+                placeholder="Share your experience using CollabBoard..."
+                maxLength={500}
+                required
+              />
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowReviewModal(false)}
+                className="flex-1 py-3 px-4 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={actionLoading}
+                className="flex-1 py-3 px-4 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white font-semibold rounded-xl shadow-lg shadow-sky-500/20 transition flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {actionLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Submit'}
               </button>
             </div>
           </form>
@@ -512,11 +609,11 @@ const RoomCard = ({ room, isHost, copiedId, onCopy, onDelete, onEnter, getTimeAg
     className="animate-fade-in-up group bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/80 dark:border-gray-800/80 hover:border-blue-200 dark:hover:border-blue-900/50 hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-300 overflow-hidden hover:-translate-y-1"
     style={{ animationDelay: `${delay}s` }}
   >
-    {/* Gradient top accent */}
-    <div className={`h-1.5 ${isHost ? 'bg-gradient-to-r from-blue-500 to-violet-500' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}`} />
+    {/* Top accent */}
+    <div className={`h-1.5 ${isHost ? 'bg-sky-500' : 'bg-green-500'}`} />
 
-    {/* Gradient preview */}
-    <div className={`h-16 ${isHost ? 'bg-gradient-to-br from-blue-50 via-violet-50 to-purple-50 dark:from-blue-950/30 dark:via-violet-950/30 dark:to-purple-950/30' : 'bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/30 dark:via-teal-950/30 dark:to-cyan-950/30'} relative`}>
+    {/* Flat color preview */}
+    <div className={`h-16 ${isHost ? 'bg-sky-50 dark:bg-sky-950/20' : 'bg-green-50 dark:bg-green-950/20'} relative`}>
       {/* Decorative pattern */}
       <div className="absolute inset-0 opacity-[0.07]"
         style={{
@@ -582,7 +679,7 @@ const RoomCard = ({ room, isHost, copiedId, onCopy, onDelete, onEnter, getTimeAg
       <div className="flex gap-2">
         <button
           onClick={onEnter}
-          className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 active:scale-[0.98]"
+          className="flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-xl shadow-sm hover:shadow-md transition-all hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer"
         >
           Enter Board
           <ChevronRight className="w-4 h-4" />

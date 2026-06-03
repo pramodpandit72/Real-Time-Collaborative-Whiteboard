@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
 import { useSocket } from '../context/SocketContext';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -68,6 +69,7 @@ const WhiteboardRoom = () => {
   const [remoteCameras, setRemoteCameras] = useState({});
   const [screenShareExpanded, setScreenShareExpanded] = useState(false);
   const [stickyNotes, setStickyNotes] = useState([]);
+  const [showDownloadDropdown, setShowDownloadDropdown] = useState(false);
   const [gridMode, setGridMode] = useState('none');
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [fillEnabled, setFillEnabled] = useState(false);
@@ -403,6 +405,26 @@ const WhiteboardRoom = () => {
     }
   }, [roomId]);
 
+  // Download as PDF
+  const handleDownloadPDF = useCallback(() => {
+    if (canvasRef.current) {
+      const canvas = canvasRef.current;
+      const imgData = canvas.toDataURL('image/png');
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const orientation = imgWidth > imgHeight ? 'landscape' : 'portrait';
+      
+      const pdf = new jsPDF({
+        orientation: orientation,
+        unit: 'px',
+        format: [imgWidth, imgHeight]
+      });
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      pdf.save(`whiteboard-${roomId}-${Date.now()}.pdf`);
+    }
+  }, [roomId]);
+
   // Copy room ID
   const copyRoomId = () => {
     navigator.clipboard.writeText(roomId);
@@ -544,7 +566,7 @@ const WhiteboardRoom = () => {
             <div className="w-px h-8 bg-gray-200 dark:bg-gray-700" />
 
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-violet-600 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-sky-500 flex items-center justify-center">
                 <Pen className="w-4 h-4 text-white" />
               </div>
               <div>
@@ -603,14 +625,41 @@ const WhiteboardRoom = () => {
               {showCamera ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
             </button>
 
-            {/* Download */}
-            <button
-              onClick={handleDownload}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl text-gray-500 dark:text-gray-400 transition"
-              title="Download as PNG"
-            >
-              <Download className="w-5 h-5" />
-            </button>
+            {/* Download Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowDownloadDropdown(!showDownloadDropdown)}
+                className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl text-gray-500 dark:text-gray-400 transition cursor-pointer ${showDownloadDropdown ? 'bg-gray-100 dark:bg-gray-700' : ''}`}
+                title="Download options"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+              {showDownloadDropdown && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowDownloadDropdown(false)} />
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-1.5 z-20 animate-scale-in">
+                    <button
+                      onClick={() => {
+                        handleDownload();
+                        setShowDownloadDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 cursor-pointer font-medium"
+                    >
+                      <span>🖼️</span> Download as PNG
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleDownloadPDF();
+                        setShowDownloadDropdown(false);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2 cursor-pointer font-medium"
+                    >
+                      <span>📄</span> Download as PDF
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 
             <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-0.5" />
 
@@ -628,7 +677,7 @@ const WhiteboardRoom = () => {
               }`}
             >
               <Users className="w-5 h-5" />
-              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-gradient-to-r from-blue-600 to-violet-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-sky-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
                 {activeUsers.length}
               </span>
             </button>
@@ -751,7 +800,7 @@ const WhiteboardRoom = () => {
                     onClick={() => switchPage(idx)}
                     className={`group relative flex items-center justify-center min-w-[36px] h-8 px-2.5 rounded-xl text-xs font-semibold transition-all ${
                       idx === currentPage
-                        ? 'bg-gradient-to-r from-blue-600 to-violet-600 text-white shadow-md shadow-blue-500/30 scale-105'
+                        ? 'bg-sky-500 text-white shadow-md shadow-sky-500/20 scale-105'
                         : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'
                     }`}
                     title={`Page ${idx + 1}${page.strokes.length > 0 ? ` · ${page.strokes.length} strokes` : ' · Empty'}`}
@@ -1016,7 +1065,7 @@ const SettingsPanel = ({ room, roomId, activeUsers, currentUserId, onClose }) =>
             return (
               <div key={uid} className="p-3 rounded-xl bg-gray-50 dark:bg-gray-700/40 space-y-2">
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold">
+                  <div className="w-7 h-7 rounded-full bg-teal-500 flex items-center justify-center text-white text-xs font-bold">
                     {(u.username || 'U')[0].toUpperCase()}
                   </div>
                   <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{u.username || 'User'}</span>

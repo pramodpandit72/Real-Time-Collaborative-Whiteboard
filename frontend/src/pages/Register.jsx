@@ -52,8 +52,8 @@ const Register = () => {
 
   return (
     <div className="min-h-screen flex">
-      {/* ─── LEFT: Animated Gradient Panel ─── */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-violet-600 via-purple-600 to-blue-700 animate-gradient bg-[length:200%_200%]">
+      {/* ─── LEFT: Solid Blue Panel ─── */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-sky-600">
         <div className="absolute inset-0 opacity-20"
           style={{
             backgroundImage: 'radial-gradient(circle at 25% 25%, white 1px, transparent 1px)',
@@ -100,10 +100,10 @@ const Register = () => {
         <div className="w-full max-w-md animate-fade-in-up">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-blue-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
+            <div className="w-10 h-10 rounded-xl bg-sky-500 flex items-center justify-center shadow-lg shadow-sky-500/25">
               <Pen className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-extrabold bg-gradient-to-r from-violet-600 to-blue-600 bg-clip-text text-transparent">
+            <span className="text-xl font-extrabold text-sky-600 dark:text-sky-400">
               CollabBoard
             </span>
           </div>
@@ -169,7 +169,7 @@ const Register = () => {
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors cursor-pointer"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
@@ -220,7 +220,7 @@ const Register = () => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-violet-600 to-blue-600 hover:from-violet-700 hover:to-blue-700 disabled:opacity-60 text-white font-semibold rounded-xl shadow-lg shadow-violet-500/25 hover:shadow-violet-500/40 transition-all hover:-translate-y-0.5 active:scale-[0.98] flex items-center justify-center gap-2 mt-2"
+                className="w-full py-3.5 px-4 bg-sky-500 hover:bg-sky-600 disabled:opacity-60 text-white font-semibold rounded-xl shadow-lg shadow-sky-500/20 hover:shadow-sky-500/35 transition-all hover:-translate-y-0.5 active:scale-[0.98] flex items-center justify-center gap-2 mt-2 cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -247,7 +247,7 @@ const Register = () => {
 
             <button
               onClick={loginWithGoogle}
-              className="w-full py-3 px-4 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-white font-medium transition-all hover:-translate-y-0.5 flex items-center justify-center gap-3 shadow-sm hover:shadow-md"
+              className="w-full py-3 px-4 border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-white font-medium transition-all hover:-translate-y-0.5 flex items-center justify-center gap-3 shadow-sm hover:shadow-md cursor-pointer"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -260,7 +260,7 @@ const Register = () => {
 
             <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
               Already have an account?{' '}
-              <Link to="/login" className="text-violet-600 hover:text-violet-700 dark:text-violet-400 font-semibold hover:underline transition-colors">
+              <Link to="/login" className="text-sky-600 hover:text-sky-700 dark:text-sky-400 font-semibold hover:underline transition-colors cursor-pointer">
                 Sign in
               </Link>
             </p>

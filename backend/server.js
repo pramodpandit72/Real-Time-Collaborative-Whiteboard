@@ -12,6 +12,7 @@ import session from 'express-session';
 import authRoutes from './routes/auth.js';
 import roomRoutes from './routes/room.js';
 import whiteboardRoutes from './routes/whiteboard.js';
+import reviewRoutes from './routes/review.js';
 
 // Import socket handler
 import socketHandler from './socket/socketHandler.js';
@@ -142,6 +143,7 @@ connectWithRetry();
 app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/whiteboard', whiteboardRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Root route
 app.get('/', (req, res) => {

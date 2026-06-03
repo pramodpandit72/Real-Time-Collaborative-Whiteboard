@@ -5,6 +5,9 @@ const SHAPE_TOOLS = new Set(['line','arrow','rectangle','circle','triangle','dia
 const BRUSH_TOOLS = new Set(['pencil','pen','marker','highlighter','eraser']);
 const FILLABLE_SHAPES = new Set(['rectangle','circle','triangle','diamond','star','hexagon','pentagon','heart']);
 
+const PAGE_WIDTH = 2000;
+const PAGE_HEIGHT = 1200;
+
 const Canvas = forwardRef(({ 
   strokes, setStrokes, tool, color, brushSize, 
   roomId, canDraw, remoteCursors, addToHistory, canvasDark, zoom, gridMode,
@@ -26,10 +29,7 @@ const Canvas = forwardRef(({
   const [laserDots, setLaserDots] = useState([]);
   const laserIdRef = useRef(0);
 
-  // Minimap
-  const minimapRef = useRef(null);
-
-  const BG = canvasDark ? '#1a1a2e' : '#ffffff';
+  const BG = canvasDark ? '#1e293b' : '#ffffff';
 
   useImperativeHandle(ref, () => canvasRef.current);
 
@@ -56,20 +56,18 @@ const Canvas = forwardRef(({
 
   useEffect(() => { redraw(); }, [strokes, canvasDark, zoom, gridMode]);
 
-  // Update minimap when strokes change
-  useEffect(() => { updateMinimap(); }, [strokes, canvasDark]);
-
   // ─── Draw Grid on Canvas ───
   const drawGrid = (ctx, width, height) => {
     if (!gridMode || gridMode === 'none') return;
     const spacing = 20;
-    const dotColor = canvasDark ? '#374151' : '#d1d5db';
-    const lineColor = canvasDark ? 'rgba(55,65,81,0.5)' : 'rgba(209,213,219,0.7)';
+    const dotColor = canvasDark ? '#475569' : '#cbd5e1';
+    const lineColor = canvasDark ? 'rgba(71, 85, 105, 0.3)' : 'rgba(203, 213, 225, 0.4)';
 
+    ctx.save();
     if (gridMode === 'dots') {
       ctx.fillStyle = dotColor;
-      for (let x = spacing; x < width; x += spacing) {
-        for (let y = spacing; y < height; y += spacing) {
+      for (let x = spacing; x < PAGE_WIDTH; x += spacing) {
+        for (let y = spacing; y < PAGE_HEIGHT; y += spacing) {
           ctx.beginPath();
           ctx.arc(x, y, 1, 0, Math.PI * 2);
           ctx.fill();
@@ -78,19 +76,20 @@ const Canvas = forwardRef(({
     } else if (gridMode === 'lines') {
       ctx.strokeStyle = lineColor;
       ctx.lineWidth = 0.5;
-      for (let x = spacing; x < width; x += spacing) {
+      for (let x = spacing; x < PAGE_WIDTH; x += spacing) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
+        ctx.lineTo(x, PAGE_HEIGHT);
         ctx.stroke();
       }
-      for (let y = spacing; y < height; y += spacing) {
+      for (let y = spacing; y < PAGE_HEIGHT; y += spacing) {
         ctx.beginPath();
         ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
+        ctx.lineTo(PAGE_WIDTH, y);
         ctx.stroke();
       }
     }
+    ctx.restore();
   };
 
   // ─── Redraw All ───
@@ -100,39 +99,41 @@ const Canvas = forwardRef(({
     if (!ctx || !canvas) return;
     const { width, height } = canvas.getBoundingClientRect();
     ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = BG;
-    ctx.fillRect(0, 0, width, height);
 
-    // Draw grid pattern directly on canvas
-    drawGrid(ctx, width, height);
+    // Clear canvas with workspace background color (outside the page)
+    ctx.fillStyle = canvasDark ? '#0f172a' : '#f1f5f9';
+    ctx.fillRect(0, 0, width, height);
 
     const z = zoom || 1;
     ctx.save();
     ctx.scale(z, z);
+
+    // Draw whiteboard page paper sheet with shadow
+    const pageBG = canvasDark ? '#1e293b' : '#ffffff';
+    ctx.shadowColor = canvasDark ? 'rgba(0, 0, 0, 0.5)' : 'rgba(15, 23, 42, 0.08)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 4;
+    ctx.fillStyle = pageBG;
+    ctx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+    
+    // Reset shadow
+    ctx.shadowColor = 'transparent';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // Draw page border
+    ctx.strokeStyle = canvasDark ? '#475569' : '#cbd5e1';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+
+    // Draw grid inside the page bounds
+    drawGrid(ctx, PAGE_WIDTH, PAGE_HEIGHT);
+
     strokesRef.current.forEach(s => renderStroke(ctx, s));
     ctx.restore();
   }, [strokes, canvasDark, zoom, gridMode]);
-
-  // ─── Minimap ───
-  const updateMinimap = useCallback(() => {
-    const miniCanvas = minimapRef.current;
-    const mainCanvas = canvasRef.current;
-    if (!miniCanvas || !mainCanvas) return;
-    const mCtx = miniCanvas.getContext('2d');
-    const mW = miniCanvas.width;
-    const mH = miniCanvas.height;
-    mCtx.clearRect(0, 0, mW, mH);
-    mCtx.fillStyle = canvasDark ? '#1a1a2e' : '#ffffff';
-    mCtx.fillRect(0, 0, mW, mH);
-
-    // Scale to fit
-    const { width, height } = mainCanvas.getBoundingClientRect();
-    const scale = Math.min(mW / width, mH / height);
-    mCtx.save();
-    mCtx.scale(scale, scale);
-    strokesRef.current.forEach(s => renderStroke(mCtx, s));
-    mCtx.restore();
-  }, [strokes, canvasDark]);
 
   // ─── Render Single Stroke ───
   const renderStroke = (ctx, s) => {
@@ -264,7 +265,12 @@ const Canvas = forwardRef(({
     const rect = canvasRef.current.getBoundingClientRect();
     const src = e.touches ? e.touches[0] : e;
     const z = zoom || 1;
-    return { x: (src.clientX - rect.left) / z, y: (src.clientY - rect.top) / z };
+    const x = (src.clientX - rect.left) / z;
+    const y = (src.clientY - rect.top) / z;
+    return {
+      x: Math.max(2, Math.min(x, PAGE_WIDTH - 2)),
+      y: Math.max(2, Math.min(y, PAGE_HEIGHT - 2))
+    };
   };
 
   // ─── Mouse / Touch Handlers ───
@@ -481,14 +487,11 @@ const Canvas = forwardRef(({
     }
   };
 
-  // Grid mode class
-  const gridClass = gridMode === 'dots' ? 'canvas-dots' : gridMode === 'lines' ? 'canvas-lines' : '';
-
   return (
-    <div ref={containerRef} className={`w-full h-full relative ${canvasDark ? 'bg-[#1a1a2e]' : 'bg-white'} ${gridClass}`}>
+    <div ref={containerRef} className={`w-full h-full relative ${canvasDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
       <canvas
         ref={canvasRef}
-        className="absolute inset-0"
+        className="absolute inset-0 animate-fade-in-up"
         style={{ cursor: getCursor() }}
         onMouseDown={handleStart}
         onMouseMove={handleMove}
@@ -544,11 +547,6 @@ const Canvas = forwardRef(({
           </span>
         </div>
       )}
-
-      {/* Minimap */}
-      <div className="minimap">
-        <canvas ref={minimapRef} width={160} height={100} className="w-full h-full" />
-      </div>
     </div>
   );
 });
