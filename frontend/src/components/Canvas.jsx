@@ -25,13 +25,48 @@ const Canvas = forwardRef(({
   const strokesRef = useRef(strokes);
   strokesRef.current = strokes;
 
+  // Throttling refs
+  const lastCursorPtRef = useRef(null);
+  const cursorRafRef = useRef(null);
+  const redrawRafRef = useRef(null);
+
   // Laser pointer trail
   const [laserDots, setLaserDots] = useState([]);
   const laserIdRef = useRef(0);
 
   const BG = canvasDark ? '#1e293b' : '#ffffff';
 
-  useImperativeHandle(ref, () => canvasRef.current);
+  useImperativeHandle(ref, () => ({
+    width: PAGE_WIDTH,
+    height: PAGE_HEIGHT,
+    toDataURL: (type = 'image/png', quality = 1.0) => {
+      const offscreen = document.createElement('canvas');
+      offscreen.width = PAGE_WIDTH;
+      offscreen.height = PAGE_HEIGHT;
+      const offCtx = offscreen.getContext('2d');
+
+      // Draw background page
+      const pageBG = canvasDark ? '#1e293b' : '#ffffff';
+      offCtx.fillStyle = pageBG;
+      offCtx.fillRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+
+      // Draw grid
+      drawGrid(offCtx, PAGE_WIDTH, PAGE_HEIGHT);
+
+      // Draw all strokes
+      strokesRef.current.forEach(s => renderStroke(offCtx, s));
+
+      return offscreen.toDataURL(type, quality);
+    }
+  }));
+
+  const requestRedraw = useCallback(() => {
+    if (redrawRafRef.current) return;
+    redrawRafRef.current = requestAnimationFrame(() => {
+      redrawRafRef.current = null;
+      redraw();
+    });
+  }, [redraw]);
 
   // ─── Initialize & Resize ───
   useEffect(() => {
@@ -51,10 +86,16 @@ const Canvas = forwardRef(({
     };
     resize();
     window.addEventListener('resize', resize);
-    return () => window.removeEventListener('resize', resize);
+    return () => {
+      window.removeEventListener('resize', resize);
+      if (cursorRafRef.current) cancelAnimationFrame(cursorRafRef.current);
+      if (redrawRafRef.current) cancelAnimationFrame(redrawRafRef.current);
+    };
   }, []);
 
-  useEffect(() => { redraw(); }, [strokes, canvasDark, zoom, gridMode]);
+  useEffect(() => {
+    requestRedraw();
+  }, [strokes, canvasDark, zoom, gridMode, requestRedraw]);
 
   // ─── Draw Grid on Canvas ───
   const drawGrid = (ctx, width, height) => {
@@ -124,9 +165,16 @@ const Canvas = forwardRef(({
     ctx.shadowOffsetY = 0;
 
     // Draw page border
-    ctx.strokeStyle = canvasDark ? '#475569' : '#cbd5e1';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = canvasDark ? '#64748b' : '#475569';
+    ctx.lineWidth = 3;
     ctx.strokeRect(0, 0, PAGE_WIDTH, PAGE_HEIGHT);
+
+    // Draw inner margin guides
+    ctx.strokeStyle = canvasDark ? 'rgba(100, 116, 139, 0.4)' : 'rgba(71, 85, 105, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 5]);
+    ctx.strokeRect(10, 10, PAGE_WIDTH - 20, PAGE_HEIGHT - 20);
+    ctx.setLineDash([]);
 
     // Draw grid inside the page bounds
     drawGrid(ctx, PAGE_WIDTH, PAGE_HEIGHT);
@@ -330,7 +378,17 @@ const Canvas = forwardRef(({
   const handleMove = (e) => {
     if (!canDraw) return;
     const pt = getCoords(e);
-    sendCursorMove(roomId, pt);
+    
+    // Throttle cursor move events to 60fps max
+    lastCursorPtRef.current = pt;
+    if (!cursorRafRef.current) {
+      cursorRafRef.current = requestAnimationFrame(() => {
+        if (lastCursorPtRef.current) {
+          sendCursorMove(roomId, lastCursorPtRef.current);
+        }
+        cursorRafRef.current = null;
+      });
+    }
     if (!drawingRef.current) return;
     e.preventDefault();
 

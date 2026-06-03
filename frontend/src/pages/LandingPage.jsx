@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { reviewService } from '../services/reviewService';
 import {
   Pen, Users, MessageSquare, Share2, Shield, Zap,
   ArrowRight, Moon, Sun, Monitor, Sparkles, Layers,
   Github, Twitter, Linkedin, ChevronRight, Star,
-  Video, Palette, Globe, Lock, Mic
+  Video, Palette, Globe, Lock, Mic, Send
 } from 'lucide-react';
 
 /* ═══════════════════════════════════════
@@ -65,6 +65,124 @@ const useTypewriter = (text, speed = 50, delay = 600) => {
 };
 
 /* ═══════════════════════════════════════
+   STATIC DATA (outside component to avoid re-creation)
+   ═══════════════════════════════════════ */
+const FEATURES = [
+  {
+    icon: 'Pen',
+    title: 'Smart Drawing Tools',
+    description: 'Pencil, pen, marker, highlighter, eraser, shapes, arrows and text with adjustable sizes.',
+    color: 'bg-sky-500',
+    bg: 'bg-sky-50 dark:bg-sky-950/20',
+  },
+  {
+    icon: 'Users',
+    title: 'Real-Time Collaboration',
+    description: 'Draw together with live cursors. Every stroke syncs instantly across all participants.',
+    color: 'bg-green-500',
+    bg: 'bg-green-50 dark:bg-green-950/20',
+  },
+  {
+    icon: 'MessageSquare',
+    title: 'Built-in Chat & Files',
+    description: 'Integrated real-time messaging with file sharing and emoji reactions.',
+    color: 'bg-cyan-500',
+    bg: 'bg-cyan-50 dark:bg-cyan-950/20',
+  },
+  {
+    icon: 'Video',
+    title: 'Video & Camera',
+    description: 'Built-in camera feeds for face-to-face collaboration while drawing together.',
+    color: 'bg-yellow-500',
+    bg: 'bg-yellow-50 dark:bg-yellow-950/20',
+  },
+  {
+    icon: 'Share2',
+    title: 'Screen Sharing',
+    description: 'Share your screen directly in the whiteboard for seamless presentations.',
+    color: 'bg-sky-500',
+    bg: 'bg-sky-50 dark:bg-sky-950/20',
+  },
+  {
+    icon: 'Shield',
+    title: 'Private & Secure Rooms',
+    description: 'Password-protected rooms with per-user permission controls for hosts.',
+    color: 'bg-green-500',
+    bg: 'bg-green-50 dark:bg-green-950/20',
+  },
+  {
+    icon: 'Palette',
+    title: 'Sticky Notes & Laser',
+    description: 'Draggable sticky notes and laser pointer tool for presentations and brainstorming.',
+    color: 'bg-yellow-500',
+    bg: 'bg-yellow-50 dark:bg-yellow-950/20',
+  },
+  {
+    icon: 'Zap',
+    title: 'Instant Sync',
+    description: 'WebSocket-powered sync ensures zero-lag collaboration across the globe.',
+    color: 'bg-cyan-500',
+    bg: 'bg-cyan-50 dark:bg-cyan-950/20',
+  },
+  {
+    icon: 'Globe',
+    title: 'Keyboard Shortcuts',
+    description: 'Power-user shortcuts for every tool. Press ? in the whiteboard to see them all.',
+    color: 'bg-sky-500',
+    bg: 'bg-sky-50 dark:bg-sky-950/20',
+  },
+];
+
+const ICON_MAP = { Pen, Users, MessageSquare, Share2, Shield, Zap, Video, Palette, Globe };
+
+const STEPS = [
+  {
+    step: '01',
+    title: 'Create or Join a Room',
+    description: 'Sign up in seconds, then create a new whiteboard room or join an existing one with a room code.',
+    icon: 'Sparkles',
+  },
+  {
+    step: '02',
+    title: 'Invite Your Team',
+    description: 'Share the unique room ID with your teammates. They can join instantly from anywhere.',
+    icon: 'Users',
+  },
+  {
+    step: '03',
+    title: 'Collaborate in Real-Time',
+    description: 'Draw, chat, share screens, and video call together. Every stroke syncs instantly.',
+    icon: 'Zap',
+  },
+];
+
+const STEP_ICON_MAP = { Sparkles, Users, Zap };
+
+const STATIC_TESTIMONIALS = [
+  {
+    name: 'Sarah Chen',
+    role: 'Product Designer at Figma',
+    text: 'CollabBoard has completely replaced our physical whiteboards. The real-time sync is flawless and the drawing tools feel incredibly natural.',
+    rating: 5,
+    color: 'bg-sky-500',
+  },
+  {
+    name: 'Marcus Rodriguez',
+    role: 'Engineering Lead at Stripe',
+    text: 'We use CollabBoard for all our sprint planning sessions. The sticky notes feature and screen sharing make remote standups feel like being in the same room.',
+    rating: 5,
+    color: 'bg-green-500',
+  },
+  {
+    name: 'Emily Nakamura',
+    role: 'Teacher at Stanford',
+    text: 'My students love the interactive whiteboard. The video call integration means I can teach and draw simultaneously. Game changer for online education.',
+    rating: 5,
+    color: 'bg-cyan-500',
+  },
+];
+
+/* ═══════════════════════════════════════
    LANDING PAGE
    ═══════════════════════════════════════ */
 const LandingPage = () => {
@@ -72,13 +190,41 @@ const LandingPage = () => {
   const { isDark, toggleTheme } = useTheme();
 
   const [userReviews, setUserReviews] = useState([]);
-  useEffect(() => {
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewFeedback, setReviewFeedback] = useState({ type: '', msg: '' });
+
+  const fetchReviews = () => {
     reviewService.getReviews().then(res => {
       if (res && res.reviews) {
         setUserReviews(res.reviews);
       }
     }).catch(err => console.error("Error fetching reviews:", err));
+  };
+
+  useEffect(() => {
+    fetchReviews();
   }, []);
+
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!reviewComment.trim()) return;
+    setReviewLoading(true);
+    setReviewFeedback({ type: '', msg: '' });
+    try {
+      await reviewService.createReview(reviewRating, reviewComment);
+      setReviewFeedback({ type: 'success', msg: 'Thank you! Your review has been submitted.' });
+      setReviewComment('');
+      setReviewRating(5);
+      fetchReviews(); // Refresh the reviews list
+      setTimeout(() => setReviewFeedback({ type: '', msg: '' }), 4000);
+    } catch (err) {
+      setReviewFeedback({ type: 'error', msg: err.response?.data?.message || 'Failed to submit review' });
+    } finally {
+      setReviewLoading(false);
+    }
+  };
 
   const subtitle = useTypewriter(
     'A powerful whiteboard where teams draw, brainstorm, and bring ideas to life together on CollabBoard.',
@@ -90,116 +236,10 @@ const LandingPage = () => {
   const stat2 = useCounter(10, 1800);
   const stat3 = useCounter(99, 2000);
 
-  const features = [
-    {
-      icon: <Pen className="w-6 h-6" />,
-      title: 'Smart Drawing Tools',
-      description: 'Pencil, pen, marker, highlighter, eraser, shapes, arrows and text with adjustable sizes.',
-      color: 'bg-sky-500',
-      bg: 'bg-sky-50 dark:bg-sky-950/20',
-    },
-    {
-      icon: <Users className="w-6 h-6" />,
-      title: 'Real-Time Collaboration',
-      description: 'Draw together with live cursors. Every stroke syncs instantly across all participants.',
-      color: 'bg-green-500',
-      bg: 'bg-green-50 dark:bg-green-950/20',
-    },
-    {
-      icon: <MessageSquare className="w-6 h-6" />,
-      title: 'Built-in Chat & Files',
-      description: 'Integrated real-time messaging with file sharing and emoji reactions.',
-      color: 'bg-cyan-500',
-      bg: 'bg-cyan-50 dark:bg-cyan-950/20',
-    },
-    {
-      icon: <Video className="w-6 h-6" />,
-      title: 'Video & Camera',
-      description: 'Built-in camera feeds for face-to-face collaboration while drawing together.',
-      color: 'bg-yellow-500',
-      bg: 'bg-yellow-50 dark:bg-yellow-950/20',
-    },
-    {
-      icon: <Share2 className="w-6 h-6" />,
-      title: 'Screen Sharing',
-      description: 'Share your screen directly in the whiteboard for seamless presentations.',
-      color: 'bg-sky-500',
-      bg: 'bg-sky-50 dark:bg-sky-950/20',
-    },
-    {
-      icon: <Shield className="w-6 h-6" />,
-      title: 'Private & Secure Rooms',
-      description: 'Password-protected rooms with per-user permission controls for hosts.',
-      color: 'bg-green-500',
-      bg: 'bg-green-50 dark:bg-green-950/20',
-    },
-    {
-      icon: <Palette className="w-6 h-6" />,
-      title: 'Sticky Notes & Laser',
-      description: 'Draggable sticky notes and laser pointer tool for presentations and brainstorming.',
-      color: 'bg-yellow-500',
-      bg: 'bg-yellow-50 dark:bg-yellow-950/20',
-    },
-    {
-      icon: <Zap className="w-6 h-6" />,
-      title: 'Instant Sync',
-      description: 'WebSocket-powered sync ensures zero-lag collaboration across the globe.',
-      color: 'bg-cyan-500',
-      bg: 'bg-cyan-50 dark:bg-cyan-950/20',
-    },
-    {
-      icon: <Globe className="w-6 h-6" />,
-      title: 'Keyboard Shortcuts',
-      description: 'Power-user shortcuts for every tool. Press ? in the whiteboard to see them all.',
-      color: 'bg-sky-500',
-      bg: 'bg-sky-50 dark:bg-sky-950/20',
-    },
-  ];
-
-  const steps = [
-    {
-      step: '01',
-      title: 'Create or Join a Room',
-      description: 'Sign up in seconds, then create a new whiteboard room or join an existing one with a room code.',
-      icon: <Sparkles className="w-6 h-6" />,
-    },
-    {
-      step: '02',
-      title: 'Invite Your Team',
-      description: 'Share the unique room ID with your teammates. They can join instantly from anywhere.',
-      icon: <Users className="w-6 h-6" />,
-    },
-    {
-      step: '03',
-      title: 'Collaborate in Real-Time',
-      description: 'Draw, chat, share screens, and video call together. Every stroke syncs instantly.',
-      icon: <Zap className="w-6 h-6" />,
-    },
-  ];
-
-  const testimonials = [
-    {
-      name: 'Sarah Chen',
-      role: 'Product Designer at Figma',
-      text: 'CollabBoard has completely replaced our physical whiteboards. The real-time sync is flawless and the drawing tools feel incredibly natural.',
-      rating: 5,
-      color: 'bg-sky-500',
-    },
-    {
-      name: 'Marcus Rodriguez',
-      role: 'Engineering Lead at Stripe',
-      text: 'We use CollabBoard for all our sprint planning sessions. The sticky notes feature and screen sharing make remote standups feel like being in the same room.',
-      rating: 5,
-      color: 'bg-green-500',
-    },
-    {
-      name: 'Emily Nakamura',
-      role: 'Teacher at Stanford',
-      text: 'My students love the interactive whiteboard. The video call integration means I can teach and draw simultaneously. Game changer for online education.',
-      rating: 5,
-      color: 'bg-cyan-500',
-    },
-  ];
+  // Use memoized references to the static data
+  const features = FEATURES;
+  const steps = STEPS;
+  const testimonials = STATIC_TESTIMONIALS;
 
   return (
     <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-white overflow-hidden">
@@ -480,21 +520,24 @@ const LandingPage = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feature, i) => (
+            {features.map((feature, i) => {
+              const IconComp = ICON_MAP[feature.icon];
+              return (
               <div
                 key={feature.title}
                 className={`group animate-fade-in-up relative p-6 rounded-2xl ${feature.bg} border border-gray-200/50 dark:border-gray-800/50 hover:border-gray-300 dark:hover:border-gray-700 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-xl`}
                 style={{ animationDelay: `${i * 0.08}s` }}
               >
                 <div className={`inline-flex p-3 rounded-xl ${feature.color} text-white shadow-lg mb-4 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300`}>
-                  {feature.icon}
+                  {IconComp && <IconComp className="w-6 h-6" />}
                 </div>
                 <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
                 <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
                   {feature.description}
                 </p>
               </div>
-            ))}
+            );
+            })}
           </div>
         </div>
       </section>
@@ -519,14 +562,16 @@ const LandingPage = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {steps.map((item, index) => (
+            {steps.map((item, index) => {
+              const StepIcon = STEP_ICON_MAP[item.icon];
+              return (
               <div key={item.step} className="relative group animate-fade-in-up" style={{ animationDelay: `${index * 0.15}s` }}>
                 {index < steps.length - 1 && (
                   <div className="hidden md:block absolute top-12 left-full w-full h-0.5 bg-sky-200 dark:bg-slate-700 -translate-x-4 z-0" />
                 )}
                 <div className="relative z-10 p-6 rounded-2xl bg-white dark:bg-gray-800/50 border border-gray-200/80 dark:border-gray-700/80 hover:shadow-xl transition-all duration-300 hover:-translate-y-1.5 group-hover:border-blue-200 dark:group-hover:border-blue-800/50">
                   <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-sky-500 text-white text-lg font-bold mb-4 shadow-lg shadow-sky-500/20 group-hover:scale-110 group-hover:rotate-3 transition-transform duration-300">
-                    {item.icon}
+                    {StepIcon && <StepIcon className="w-6 h-6" />}
                   </div>
                   <div className="text-xs font-bold text-sky-500 dark:text-sky-400 mb-2 tracking-wider">STEP {item.step}</div>
                   <h3 className="text-xl font-semibold mb-2">{item.title}</h3>
@@ -535,7 +580,8 @@ const LandingPage = () => {
                   </p>
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         </div>
       </section>
@@ -655,6 +701,94 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* ─── LEAVE A REVIEW (authenticated only) ─── */}
+      {isAuthenticated && (
+        <section className="py-16 sm:py-20 border-t border-gray-200/40 dark:border-gray-800/40 bg-gray-50/50 dark:bg-gray-900/50">
+          <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-10 animate-fade-in-up">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-yellow-50 dark:bg-slate-900 border border-yellow-200/50 dark:border-slate-800 text-yellow-700 dark:text-yellow-300 text-sm font-medium mb-4">
+                <Star className="w-4 h-4" />
+                Share Your Experience
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-bold mb-3">
+                Leave a <span className="text-yellow-500">Review</span>
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 text-lg">
+                Tell us what you think about CollabBoard
+              </p>
+            </div>
+
+            <form
+              onSubmit={handleSubmitReview}
+              className="animate-fade-in-up bg-white dark:bg-gray-800/50 rounded-2xl border border-gray-200/80 dark:border-gray-700/80 p-6 sm:p-8 shadow-lg"
+            >
+              {/* Feedback banners */}
+              {reviewFeedback.type === 'success' && (
+                <div className="mb-5 p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 text-green-600 dark:text-green-400 rounded-xl text-sm flex items-center gap-2 animate-fade-in-up">
+                  ✅ {reviewFeedback.msg}
+                </div>
+              )}
+              {reviewFeedback.type === 'error' && (
+                <div className="mb-5 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 rounded-xl text-sm flex items-center gap-2 animate-fade-in-up">
+                  ❌ {reviewFeedback.msg}
+                </div>
+              )}
+
+              {/* Star Rating */}
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Your Rating
+                </label>
+                <div className="flex gap-2 text-3xl">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setReviewRating(star)}
+                      className="hover:scale-125 transition-transform text-yellow-400 cursor-pointer focus:outline-none"
+                      aria-label={`Rate ${star} stars`}
+                    >
+                      {star <= reviewRating ? '★' : '☆'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Comment */}
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Your Review
+                </label>
+                <textarea
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  rows={4}
+                  className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent outline-none transition-all resize-none"
+                  placeholder="Share your experience using CollabBoard..."
+                  maxLength={500}
+                  required
+                />
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 text-right">{reviewComment.length}/500</p>
+              </div>
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={reviewLoading || !reviewComment.trim()}
+                className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3 bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-lg shadow-sky-500/20 hover:shadow-sky-500/30 transition-all hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer"
+              >
+                {reviewLoading ? (
+                  <span className="animate-spin inline-block w-5 h-5 border-2 border-white border-t-transparent rounded-full" />
+                ) : (
+                  <Send className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" />
+                )}
+                {reviewLoading ? 'Submitting...' : 'Submit Review'}
+              </button>
+            </form>
+          </div>
+        </section>
+      )}
+
       {/* ─── CTA ─── */}
       <section className="py-20 sm:py-32">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -714,7 +848,7 @@ const LandingPage = () => {
                 <li><a href="#features" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Features</a></li>
                 <li><a href="#how-it-works" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">How It Works</a></li>
                 <li><a href="#testimonials" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Testimonials</a></li>
-                <li><Link to="/register" className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Get Started</Link></li>
+                <li><Link to={isAuthenticated ? '/dashboard' : '/register'} className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">{isAuthenticated ? 'Dashboard' : 'Get Started'}</Link></li>
               </ul>
             </div>
 

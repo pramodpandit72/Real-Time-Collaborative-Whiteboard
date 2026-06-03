@@ -76,6 +76,8 @@ const WhiteboardRoom = () => {
   const [fillColor, setFillColor] = useState('#3b82f6');
 
   const canvasRef = useRef(null);
+  const latestRemoteCursorsRef = useRef({});
+  const cursorsChangedRef = useRef(false);
 
   // Fetch room data
   useEffect(() => {
@@ -126,6 +128,16 @@ const WhiteboardRoom = () => {
   useEffect(() => {
     if (!socket) return;
 
+    let cursorAnimationFrameId;
+    const updateCursorsLoop = () => {
+      if (cursorsChangedRef.current) {
+        setRemoteCursors({ ...latestRemoteCursorsRef.current });
+        cursorsChangedRef.current = false;
+      }
+      cursorAnimationFrameId = requestAnimationFrame(updateCursorsLoop);
+    };
+    cursorAnimationFrameId = requestAnimationFrame(updateCursorsLoop);
+
     // Room events
     socket.on('room-joined', (data) => {
       console.log('Joined room:', data);
@@ -144,11 +156,8 @@ const WhiteboardRoom = () => {
     socket.on('user-left', (data) => {
       console.log('User left:', data.user.username);
       // Remove their cursor
-      setRemoteCursors(prev => {
-        const newCursors = { ...prev };
-        delete newCursors[data.user.id];
-        return newCursors;
-      });
+      delete latestRemoteCursorsRef.current[data.user.id];
+      cursorsChangedRef.current = true;
     });
 
     socket.on('active-users', (data) => {
@@ -211,13 +220,11 @@ const WhiteboardRoom = () => {
 
     // Cursor events
     socket.on('cursor-move', (data) => {
-      setRemoteCursors(prev => ({
-        ...prev,
-        [data.userId]: {
-          position: data.position,
-          username: data.username
-        }
-      }));
+      latestRemoteCursorsRef.current[data.userId] = {
+        position: data.position,
+        username: data.username
+      };
+      cursorsChangedRef.current = true;
     });
 
     // Settings events
@@ -286,6 +293,7 @@ const WhiteboardRoom = () => {
     });
 
     return () => {
+      cancelAnimationFrame(cursorAnimationFrameId);
       socket.off('room-joined');
       socket.off('user-joined');
       socket.off('user-left');
